@@ -24,6 +24,10 @@ TIP_BOARD_NAME_KEYWORDS = [
     "법", "심리학", "육아", "다이어트", "건강"
 ]
 
+EXCLUDE_BOARD_NAME_KEYWORDS = [
+    "베스트", "베오베", "유머", "사이다", "멘붕"
+]
+
 
 def fetch(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": UA})
@@ -94,6 +98,9 @@ def tip_score(item: dict) -> float:
     bonus = min(bonus, 6)
     return (item["reco"] * 2) + (item["comments"] * 2) + math.log1p(item["views"]) + bonus + recency_bonus(item["date"])
 
+def is_tip_candidate(title: str) -> bool:
+    return any(kw in title for kw in TIP_KEYWORDS)
+
 
 def fetch_board(table: str, pages: int) -> list[dict]:
     results = []
@@ -109,7 +116,7 @@ def discover_tip_boards() -> dict:
     html_text = fetch(BASE)
     # board links are of form list.php?table=xxx and text label is inside anchor
     boards = {}
-    for m in re.finditer(r"<a href='/list\.php\?table=([^']+)'[^>]*>\s*([^<]+)\s*</a>", html_text):
+    for m in re.finditer(r"<a\s+href=['\"]list\.php\?table=([^'\"]+)['\"][^>]*>(.*?)</a>", html_text, re.S):
         table = m.group(1)
         name = strip_tags(m.group(2))
         if name:
@@ -120,6 +127,8 @@ def discover_tip_boards() -> dict:
 def pick_tip_tables(boards: dict) -> list[str]:
     selected = []
     for table, name in boards.items():
+        if any(kw in name for kw in EXCLUDE_BOARD_NAME_KEYWORDS):
+            continue
         for kw in TIP_BOARD_NAME_KEYWORDS:
             if kw in name:
                 selected.append(table)
@@ -152,22 +161,32 @@ def main():
     if args.tips_boards:
         tip_tables = [t.strip() for t in args.tips_boards.split(',') if t.strip()]
         boards = {t: t for t in tip_tables}
+        fallback_all = False
     else:
         boards = discover_tip_boards()
         tip_tables = pick_tip_tables(boards)
+        fallback_all = False
+        if not tip_tables:
+            print("(꿀팁) 게시판 후보를 찾지 못했습니다. --tips-boards로 테이블을 지정하세요.")
+            tip_tables = []
 
     tip_items = []
     for table in tip_tables:
         items = fetch_board(table, args.tips_pages)
         for it in items:
             it["board"] = boards.get(table, table)
-        tip_items.extend(items)
+            if not is_tip_candidate(it["title"]):
+                continue
+            tip_items.append(it)
 
-    tip_items.sort(key=tip_score, reverse=True)
-    for it in tip_items[:args.top]:
-        score = tip_score(it)
-        board_name = it.get("board", "")
-        print(f"{score:.2f} | {board_name} | {it['title']} | 추천 {it['reco']} / 댓글 {it['comments']} / 조회 {it['views']} | {it['url']}")
+    if not tip_items:
+        print("(꿀팁) 키워드 매칭 결과가 없습니다. 키워드 확장 또는 --tips-boards 지정이 필요합니다.")
+    else:
+        tip_items.sort(key=tip_score, reverse=True)
+        for it in tip_items[:args.top]:
+            score = tip_score(it)
+            board_name = it.get("board", "")
+            print(f"{score:.2f} | {board_name} | {it['title']} | 추천 {it['reco']} / 댓글 {it['comments']} / 조회 {it['views']} | {it['url']}")
 
 
 if __name__ == "__main__":
