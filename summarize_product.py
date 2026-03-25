@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-import json, sqlite3, subprocess
+import json, os, sqlite3, subprocess
 from pathlib import Path
 
 DB_PATH = Path('/root/.codex/worktrees/aafa/root/hotdeal.db')
-API_KEY = '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'
 MODEL = 'llama-3.3-70b-versatile'
 
 PROMPT_PREFIX = (
@@ -22,6 +21,19 @@ def build_prompt(row):
         parts.append(f"상세설명: {details}")
     return "\n".join(parts)
 
+def load_dotenv(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k = k.strip()
+        v = v.strip().strip('"').strip("'")
+        if k and k not in os.environ:
+            os.environ[k] = v
+
 conn = sqlite3.connect(DB_PATH)
 conn.row_factory = sqlite3.Row
 cur = conn.cursor()
@@ -35,6 +47,11 @@ cur.execute(
     """
 )
 row = cur.fetchone()
+
+load_dotenv(Path('/root/.codex/worktrees/aafa/root/.env'))
+API_KEY = os.environ.get('GROQ_API_KEY')
+if not API_KEY:
+    raise SystemExit("GROQ_API_KEY is not set (set env var or .env file)")
 
 prompt = build_prompt(row)
 
