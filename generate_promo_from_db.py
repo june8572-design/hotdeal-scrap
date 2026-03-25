@@ -28,8 +28,22 @@ def build_prompt(row: dict) -> str:
         parts.append(f"3. 제품홍보글 {details}")
     return " ".join(parts).strip()
 
+def load_dotenv(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k = k.strip()
+        v = v.strip().strip('"').strip("'")
+        if k and k not in os.environ:
+            os.environ[k] = v
+
 
 def call_llm(prompt: str) -> str:
+    load_dotenv(Path('/root/.codex/worktrees/aafa/root/.env'))
     api_key = os.environ.get('NVIDIA_API_KEY')
     if not api_key:
         raise SystemExit('NVIDIA_API_KEY is not set')
