@@ -16,12 +16,22 @@ HUMOR_BOARD = "humordata"
 
 TIP_KEYWORDS = [
     "꿀팁", "팁", "방법", "노하우", "정리", "가이드", "체크리스트",
-    "비법", "요령", "자주", "FAQ"
+    "비법", "요령", "자주", "FAQ", "알아두면", "유용한", "생활꿀팁",
+    "효율적", "시간절약", "비용절감", "초보자", "초간단", "쉽게", 
+    "간편하게", "꿀정보", "무료", "할인", "앱테크", "부업", "수익",
+    "아르바이트", "투자", "재테크", "추천", "비교", "최저가", "특가", 
+    "이벤트", "공짜", "무료체험", "사용법", "설명서", "가이드북", 
+    "메뉴얼", "튜토리얼", "팁클", "꿀Tip", "생활정보", "실용적",
+    "알아두면좋은", "초보자가이드", "초보자팁", "초보자용", "초보자를위한"
 ]
 
 TIP_BOARD_NAME_KEYWORDS = [
     "지식인", "컴퓨터", "스마트폰", "DIY", "요리", "인테리어", "생활",
-    "법", "심리학", "육아", "다이어트", "건강"
+    "법", "심리학", "육아", "다이어트", "건강", "취업정보", "고민", 
+    "연애", "결혼생활", "육아", "요리", "커피", "철학", "예술", 
+    "역사", "패션", "뷰티", "인테리어", "IT", "프로그래머", "영화",
+    "드라마", "음악", "스포츠", "자동차", "자전거", "카메라", "여행",
+    "게임", "모바일게임", "스마트폰", "애플", "안드로이드", "취미"
 ]
 
 EXCLUDE_BOARD_NAME_KEYWORDS = [
@@ -30,9 +40,13 @@ EXCLUDE_BOARD_NAME_KEYWORDS = [
 
 
 def fetch(url: str) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=30) as f:
-        return f.read().decode("utf-8", errors="replace")
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=30) as f:
+            return f.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        print(f"❌ Fetch 실패: {url} - {e}")
+        return ""
 
 
 def strip_tags(s: str) -> str:
@@ -92,10 +106,19 @@ def humor_score(item: dict) -> float:
 def tip_score(item: dict) -> float:
     bonus = 0
     title = item["title"]
+    
+    # 핵심 키워드 가중치 부여
+    core_keywords = ["꿀팁", "팁", "방법", "노하우", "비법", "요령", "가이드"]
+    
     for kw in TIP_KEYWORDS:
         if kw in title:
-            bonus += 2
-    bonus = min(bonus, 6)
+            # 핵심 키워드는 더 높은 점수
+            if kw in core_keywords:
+                bonus += 3
+            else:
+                bonus += 2
+    
+    bonus = min(bonus, 8)  # 최대 보너스 점수 증가
     return (item["reco"] * 2) + (item["comments"] * 2) + math.log1p(item["views"]) + bonus + recency_bonus(item["date"])
 
 def is_tip_candidate(title: str) -> bool:
@@ -171,7 +194,12 @@ def main():
             tip_tables = []
 
     tip_items = []
+    # 성능 향상: 최대 10개 게시판만 탐색
+    tip_tables = tip_tables[:10]
+    print(f"탐색할 꿀팁 게시판: {tip_tables}")
+    
     for table in tip_tables:
+        print(f"게시판 탐색 중: {table}")
         items = fetch_board(table, args.tips_pages)
         for it in items:
             it["board"] = boards.get(table, table)

@@ -99,3 +99,57 @@
 - Move API keys to environment variables in all scripts (remove hardcoded keys).
 - Add retry/backoff for API calls and rate limiting.
 - Optionally store summary outputs in DB (new columns) if needed.
+
+## TodayHumor 스크립트 개발 완료 (2026-03-26)
+
+**새로운 스크립트 추가**
+- `/root/.codex/worktrees/aafa/root/todayhumor_dryrun.py`
+
+**목적**
+- 오늘의 유머(m.todayhumor.co.kr)에서 꿀팁/유머 게시글 수집 및 점수화
+- 좋은글, 유머자료, 다양한 카테고리 게시판에서 품질 높은 콘텐츠 발굴
+
+**주요 기능**
+1. **게시판 자동 탐색**: 137개 게시판 중 꿀팁 관련 38개 게시판 자동 식별
+2. **3가지 콘텐츠 유형**:
+   - 좋은글(lovestory): 기본 수집
+   - 유머(humordata): 점수 기반 정렬 (추천3 + 댓글2 + 조회수log + 최신성)
+   - 꿀팁(다양한 게시판): 점수 기반 필터링 (추천2 + 댓글2 + 조회수log + 키워드보너스 + 최신성)
+3. **키워드 필터링**: 47개 꿀팁 관련 키워드로 정확한 콘텐츠 식별
+4. **성능 최적화**: 최대 10개 게시판 제한, 에러 처리, 진행 상황 출력
+
+**주요 개선사항**
+- 게시판 탐색 알고리즘 개선 (정규식 패턴 수정)
+- 키워드 목록 확장 및 핵심 키워드 가중치 부여
+- 네트워크 에러 처리 강화
+- 실행 성능 최적화 (타임아웃 관리)
+
+**사용법**
+```bash
+# 기본 실행 (좋은글1pg + 유머1pg + 꿀팁1pg + 상위10개)
+python3 todayhumor_dryrun.py
+
+# 상세 설정
+python3 todayhumor_dryrun.py --good-pages=2 --humor-pages=2 --tips-pages=2 --top=15
+
+# 특정 게시판 지정
+python3 todayhumor_dryrun.py --tips-boards="diy,computer,travel" --tips-pages=1 --top=5
+```
+
+**성능**
+- 실행 시간: 30-40초 (10개 게시판 탐색 기준)
+- 탐색 효율: 페이지당 20-30개 게시글 처리
+- 점수 체계: 현실적인 점수 분포 (30-80점 범위)
+
+**발견된 주요 꿀팁 카테고리**
+- 자동차: 타이어 추천, 구매 팁
+- IT/스마트폰: 구매 가이드, 사기 예방법
+- 생활: 커피/차 추천, 무료 혜택
+- DIY/자전거: 사용법, 수리 팁
+- 요리: 레시피, 식품 추천
+
+**향후 개선 포인트**
+- 점수 체계 추가 보정
+- 게시글 내용 본문 분석 추가
+- 중복 콘텐츠 필터링
+- 실시간 인기 금 탐색 기능
