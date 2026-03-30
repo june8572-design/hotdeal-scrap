@@ -211,8 +211,55 @@ def tip_score(item: dict) -> float:
     return (item["reco"] * 2) + (item["comments"] * 2) + math.log1p(item["views"]) + bonus + recency_bonus(item["date"])
 
 
-def is_tip_candidate(title: str) -> bool:
-    return any(kw in title for kw in TIP_KEYWORDS)
+def is_help_request_title(title: str) -> bool:
+    normalized = re.sub(r"\s+", " ", title).strip()
+    help_patterns = [
+        r"추천\s*좀",
+        r"추천\s*부탁",
+        r"도와주세요",
+        r"알려\s*주세요",
+        r"알려\s*주세용",
+        r"뭐가\s*좋",
+        r"어떻게\s*해야",
+        r"질문",
+        r"문의",
+        r"부탁드려요",
+        r"부탁드립니다",
+        r"좋을까요\??$",
+        r"될까요\??$",
+    ]
+
+    if any(re.search(pattern, normalized) for pattern in help_patterns):
+        return True
+
+    if normalized.endswith("?") or normalized.endswith("??"):
+        return True
+
+    return False
+
+
+def count_tip_keyword_hits(text: str) -> int:
+    return sum(1 for kw in TIP_KEYWORDS if kw in text)
+
+
+def is_tip_candidate(title: str, content_text: str = "") -> bool:
+    title = title.strip()
+    content_text = content_text.strip()
+
+    if is_help_request_title(title):
+        return False
+
+    title_hits = count_tip_keyword_hits(title)
+    if title_hits > 0:
+        return True
+
+    if not content_text:
+        return False
+
+    content_hits = count_tip_keyword_hits(content_text)
+    strong_content_keywords = ["꿀팁", "사용법", "정리", "가이드", "체크리스트", "방법", "노하우"]
+    strong_hits = sum(1 for kw in strong_content_keywords if kw in content_text)
+    return content_hits >= 2 or strong_hits >= 1
 
 
 def fetch_board(table: str, pages: int) -> list[dict]:
@@ -404,6 +451,15 @@ def collect_tip_items(tip_tables: list[str], boards: dict, tips_pages: int) -> l
     return tip_items
 
 
+def refine_tip_items_with_details(items: list[dict]) -> list[dict]:
+    refined = []
+    for item in items:
+        if is_tip_candidate(item.get("title", ""), item.get("content_text", "")):
+            item["score"] = tip_score(item)
+            refined.append(item)
+    return refined
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="TodayHumor dry-run collector (good/humor/tips)")
     ap.add_argument("--good-pages", type=int, default=1)
@@ -466,6 +522,14 @@ def main() -> None:
         detail_items = filter_items_for_detail_categories(all_items, allowed_categories)
         print_detail_fetch_plan(detail_items, allowed_categories)
         detail_count = enrich_items_with_details(detail_items)
+        if "tip" in allowed_categories and tip_items:
+            refined_tip_items = refine_tip_items_with_details(tip_items)
+            removed = len(tip_items) - len(refined_tip_items)
+            if removed:
+                print(f"tip 상세 본문 재판정으로 제외: {removed}건")
+            tip_items = refined_tip_items
+            non_tip_items = [item for item in all_items if item.get("category") != "tip"]
+            all_items = non_tip_items + tip_items
         print(f"\n상세 수집 완료: {detail_count}건")
 
     if args.save:
