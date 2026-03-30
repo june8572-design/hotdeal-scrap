@@ -11,9 +11,55 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv('HOTDEAL_DB_PATH', str(PROJECT_ROOT / 'hotdeal.db')))
+ENV_PATH = Path(os.getenv('HOTDEAL_ENV_PATH', str(PROJECT_ROOT / '.env')))
 UA = 'Mozilla/5.0'
 SITES = {'네이버', '네이버쇼핑'}
 SLEEP_SEC = 0.5
+
+
+def load_dotenv(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding='utf-8').splitlines():
+        line = line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        k, v = line.split('=', 1)
+        k = k.strip()
+        v = v.strip().strip('"').strip("'")
+        if k and k not in os.environ:
+            os.environ[k] = v
+
+
+def build_brand_connector_link(target_url: str, *, deal_id: int | None = None) -> str | None:
+    load_dotenv(ENV_PATH)
+    template = os.getenv('NAVER_BRAND_CONNECTOR_URL_TEMPLATE', '').strip()
+    if not template:
+        return None
+
+    encoded_url = urllib.parse.quote(target_url, safe='')
+    data = {
+        'url': encoded_url,
+        'raw_url': target_url,
+        'deal_id': str(deal_id or ''),
+    }
+
+    if '{url}' not in template:
+        raise ValueError('NAVER_BRAND_CONNECTOR_URL_TEMPLATE must include {url} placeholder')
+    return template.format(**data)
+
+
+def extract_links(html_fragment: str) -> list[str]:
+    links = re.findall(r'href=["\']([^"\']+)["\']', html_fragment, re.I)
+    normalized = []
+    for link in links:
+        if not link:
+            continue
+        absolute = urllib.parse.urljoin('https://hotdeal.zip/', link)
+        if absolute.startswith('http://') or absolute.startswith('https://'):
+            normalized.append(absolute)
+    # preserve order, de-duplicate
+    return list(dict.fromkeys(normalized))
 
 
 def fetch_html(url: str) -> str:
@@ -99,7 +145,8 @@ def parse_page(html_text: str):
 
     # Price table
     ai = re.search(r'<div class="ai-price-content">(.*?)</div>', html_text, re.S)
-    price_table = parse_price_table(ai.group(1)) if ai else []
+    ai_html = ai.group(1) if ai else ''
+    price_table = parse_price_table(ai_html) if ai else []
 
     # Product details
     details_html = find_div_inner(html_text, 'product-details')
@@ -111,7 +158,15 @@ def parse_page(html_text: str):
         details_text_raw = html_to_text(details_html)
         details_text_clean = clean_text(details_text_raw)
 
-    return price_table, price_summary, details_text_raw, details_text_clean, details_images
+    # out links from price table + details section
+    out_links = []
+    if ai_html:
+        out_links.extend(extract_links(ai_html))
+    if details_html:
+        out_links.extend(extract_links(details_html))
+    out_links = list(dict.fromkeys(out_links))
+
+    return price_table, price_summary, details_text_raw, details_text_clean, details_images, out_links
 
 
 def ensure_columns(cur):
@@ -124,6 +179,8 @@ def ensure_columns(cur):
         ('details_text_clean', 'TEXT'),
         ('details_images_json', 'TEXT'),
         ('details_fetched_at', 'TEXT'),
+        ('out_links_json', 'TEXT'),
+        ('naver_brand_connector_links_json', 'TEXT'),
     ]
     for name, col_type in columns:
         if name not in existing:
@@ -155,7 +212,12 @@ def main():
         url = f"https://hotdeal.zip/{safe_slug}"
         try:
             html_text = fetch_html(url)
-            price_table, price_summary, text_raw, text_clean, images = parse_page(html_text)
+            price_table, price_summary, text_raw, text_clean, images, out_links = parse_page(html_text)
+            brand_connector_links = []
+            for link in out_links:
+                built = build_brand_connector_link(link, deal_id=deal_id)
+                if built:
+                    brand_connector_links.append(built)
 
             cur.execute(
                 """
@@ -165,6 +227,8 @@ def main():
                     details_text_raw = ?,
                     details_text_clean = ?,
                     details_images_json = ?,
+                    out_links_json = ?,
+                    naver_brand_connector_links_json = ?,
                     details_fetched_at = datetime('now')
                 WHERE id = ?
                 """,
@@ -174,6 +238,8 @@ def main():
                     text_raw,
                     text_clean,
                     json.dumps(images, ensure_ascii=False),
+                    json.dumps(out_links, ensure_ascii=False),
+                    json.dumps(brand_connector_links, ensure_ascii=False),
                     deal_id,
                 )
             )
