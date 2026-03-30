@@ -2,7 +2,9 @@
 import json, os, sqlite3, subprocess
 from pathlib import Path
 
-DB_PATH = Path('/root/.codex/worktrees/aafa/root/hotdeal.db')
+PROJECT_ROOT = Path(__file__).resolve().parent
+DB_PATH = Path(os.getenv('HOTDEAL_DB_PATH', str(PROJECT_ROOT / 'hotdeal.db')))
+ENV_PATH = Path(os.getenv('HOTDEAL_ENV_PATH', str(PROJECT_ROOT / '.env')))
 MODEL = 'llama-3.3-70b-versatile'
 
 PROMPT_PREFIX = (
@@ -48,7 +50,7 @@ cur.execute(
 )
 row = cur.fetchone()
 
-load_dotenv(Path('/root/.codex/worktrees/aafa/root/.env'))
+load_dotenv(ENV_PATH)
 API_KEY = os.environ.get('GROQ_API_KEY')
 if not API_KEY:
     raise SystemExit("GROQ_API_KEY is not set (set env var or .env file)")

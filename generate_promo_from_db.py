@@ -6,7 +6,9 @@ import sqlite3
 import subprocess
 from pathlib import Path
 
-DB_PATH = Path('/root/.codex/worktrees/aafa/root/hotdeal.db')
+PROJECT_ROOT = Path(__file__).resolve().parent
+DB_PATH = Path(os.getenv('HOTDEAL_DB_PATH', str(PROJECT_ROOT / 'hotdeal.db')))
+ENV_PATH = Path(os.getenv('HOTDEAL_ENV_PATH', str(PROJECT_ROOT / '.env')))
 MODEL = 'moonshotai/kimi-k2.5'
 
 PROMPT_PREFIX = (
@@ -43,7 +45,7 @@ def load_dotenv(path: Path) -> None:
 
 
 def call_llm(prompt: str) -> str:
-    load_dotenv(Path('/root/.codex/worktrees/aafa/root/.env'))
+    load_dotenv(ENV_PATH)
     api_key = os.environ.get('NVIDIA_API_KEY')
     if not api_key:
         raise SystemExit('NVIDIA_API_KEY is not set')

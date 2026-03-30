@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import sqlite3
 import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-DEFAULT_DB = Path('/root/.codex/worktrees/aafa/root/hotdeal.db')
+PROJECT_ROOT = Path(__file__).resolve().parent
+DEFAULT_DB = Path(os.getenv('HOTDEAL_DB_PATH', str(PROJECT_ROOT / 'hotdeal.db')))
 BASE_URL = 'https://hotdeal.zip/api/deals.php'
 UA = 'Mozilla/5.0'
 

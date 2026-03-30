@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import re
 import sqlite3
 import time
@@ -8,7 +9,8 @@ import urllib.request
 import urllib.parse
 from pathlib import Path
 
-DB_PATH = Path('/root/.codex/worktrees/aafa/root/hotdeal.db')
+PROJECT_ROOT = Path(__file__).resolve().parent
+DB_PATH = Path(os.getenv('HOTDEAL_DB_PATH', str(PROJECT_ROOT / 'hotdeal.db')))
 UA = 'Mozilla/5.0'
 SITES = {'네이버', '네이버쇼핑'}
 SLEEP_SEC = 0.5
