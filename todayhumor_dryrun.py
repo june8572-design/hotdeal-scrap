@@ -43,6 +43,32 @@ TIP_BOARD_NAME_KEYWORDS = [
 EXCLUDE_BOARD_NAME_KEYWORDS = [
     "베스트", "베오베", "유머", "사이다", "멘붕",
 ]
+DETAIL_CATEGORY_CHOICES = {"good", "humor", "tip"}
+
+
+def parse_detail_categories(raw: str) -> set[str]:
+    if not raw.strip():
+        return set(DETAIL_CATEGORY_CHOICES)
+
+    categories = {part.strip() for part in raw.split(",") if part.strip()}
+    unknown = categories - DETAIL_CATEGORY_CHOICES
+    if unknown:
+        raise ValueError(f"Unknown detail categories: {', '.join(sorted(unknown))}")
+    return categories
+
+
+def filter_items_for_detail_categories(items: list[dict], allowed_categories: set[str]) -> list[dict]:
+    return [item for item in items if item.get("category") in allowed_categories]
+
+
+def print_detail_fetch_plan(items: list[dict], allowed_categories: set[str]) -> None:
+    counts = {category: 0 for category in sorted(allowed_categories)}
+    for item in items:
+        category = item.get("category")
+        if category in counts:
+            counts[category] += 1
+    summary = ", ".join(f"{category}={count}" for category, count in counts.items())
+    print(f"상세 수집 대상 카테고리: {sorted(allowed_categories)} ({summary})")
 
 
 def fetch(url: str) -> str:
@@ -58,6 +84,29 @@ def fetch(url: str) -> str:
 def strip_tags(s: str) -> str:
     s = re.sub(r"<[^>]+>", "", s)
     return html.unescape(s).strip()
+
+
+def html_to_text(s: str) -> str:
+    s = re.sub(r"(?i)<br\s*/?>", "\n", s)
+    s = re.sub(r"(?i)</p>", "\n", s)
+    s = re.sub(r"(?i)</div>", "\n", s)
+    s = re.sub(r"(?i)</li>", "\n", s)
+    s = re.sub(r"(?is)<script.*?</script>", "", s)
+    s = re.sub(r"(?is)<style.*?</style>", "", s)
+    s = re.sub(r"<[^>]+>", "", s)
+    s = html.unescape(s)
+    s = s.replace("\r", "")
+    s = re.sub(r"\xa0", " ", s)
+    s = re.sub(r"\n\s*\n+", "\n", s)
+    lines = [re.sub(r"\s+", " ", line).strip() for line in s.split("\n")]
+    return "\n".join(line for line in lines if line)
+
+
+def extract_first_group(pattern: str, text: str, flags: int = 0, default: str = "") -> str:
+    match = re.search(pattern, text, flags)
+    if not match:
+        return default
+    return match.group(1).strip()
 
 
 def parse_list_items(page_html: str) -> list[dict]:
@@ -92,6 +141,46 @@ def parse_list_items(page_html: str) -> list[dict]:
             }
         )
     return items
+
+
+def parse_detail_page(page_html: str) -> dict:
+    title = html_to_text(extract_first_group(r'<span class="view_subject">(.*?)</span>', page_html, re.S))
+    writer = html_to_text(
+        extract_first_group(
+            r"<span id='viewPageWriterNameSpan'[^>]*>(.*?)</span>",
+            page_html,
+            re.S,
+        )
+    )
+    date = html_to_text(extract_first_group(r'<span class="view_bestRegDate"[^>]*>(.*?)</span>', page_html, re.S))
+
+    reco_raw = html_to_text(extract_first_group(r'<span class="view_okNok">(.*?)</span>', page_html, re.S))
+    views_raw = html_to_text(extract_first_group(r'<span class="view_viewCount">(.*?)</span>', page_html, re.S))
+    comments_raw = html_to_text(extract_first_group(r'<span class="view_replyCount">(.*?)</span>', page_html, re.S))
+
+    content_html = extract_first_group(r'<div class="viewContent" id="viewContent">(.*?)</div>\s*(?:<table class=\'view_page_source_div\'|<!--출처-->)', page_html, re.S)
+    if not content_html:
+        content_html = extract_first_group(r'<div class="viewContent" id="viewContent">(.*?)</div>', page_html, re.S)
+
+    images = re.findall(r"<img[^>]+src=['\"]([^'\"]+)['\"]", content_html, re.S)
+    normalized_images = [urljoin(BASE, src) for src in images]
+    content_text = html_to_text(content_html)
+
+    source_html = extract_first_group(r"<td class='source_content'>(.*?)</td>", page_html, re.S)
+    source_text = html_to_text(source_html)
+
+    return {
+        "title": title,
+        "writer": writer,
+        "date": date,
+        "reco": int(re.sub(r"\D", "", reco_raw) or 0),
+        "views": int(re.sub(r"\D", "", views_raw) or 0),
+        "comments": int(re.sub(r"\D", "", comments_raw) or 0),
+        "content_html": content_html,
+        "content_text": content_text,
+        "content_images_json": normalized_images,
+        "source_text": source_text,
+    }
 
 
 def recency_bonus(date_str: str) -> float:
@@ -176,11 +265,29 @@ def ensure_storage_schema(cur: sqlite3.Cursor) -> None:
             category TEXT,
             score REAL,
             raw_json TEXT,
+            content_html TEXT,
+            content_text TEXT,
+            content_images_json TEXT,
+            source_text TEXT,
+            detail_fetched_at TEXT,
             collected_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         )
         '''
     )
+
+    cur.execute("PRAGMA table_info(todayhumor_posts)")
+    existing = {row[1] for row in cur.fetchall()}
+    extra_columns = [
+        ("content_html", "TEXT"),
+        ("content_text", "TEXT"),
+        ("content_images_json", "TEXT"),
+        ("source_text", "TEXT"),
+        ("detail_fetched_at", "TEXT"),
+    ]
+    for name, col_type in extra_columns:
+        if name not in existing:
+            cur.execute(f"ALTER TABLE todayhumor_posts ADD COLUMN {name} {col_type}")
 
 
 def save_posts(cur: sqlite3.Cursor, items: list[dict]) -> int:
@@ -191,8 +298,9 @@ def save_posts(cur: sqlite3.Cursor, items: list[dict]) -> int:
     INSERT INTO todayhumor_posts (
         url, no, title, writer, date, views, reco, comments,
         board_table, board_name, category, score, raw_json,
-        collected_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        content_html, content_text, content_images_json, source_text,
+        detail_fetched_at, collected_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     ON CONFLICT(url) DO UPDATE SET
         no = excluded.no,
         title = excluded.title,
@@ -206,6 +314,11 @@ def save_posts(cur: sqlite3.Cursor, items: list[dict]) -> int:
         category = excluded.category,
         score = excluded.score,
         raw_json = excluded.raw_json,
+        content_html = COALESCE(excluded.content_html, todayhumor_posts.content_html),
+        content_text = COALESCE(excluded.content_text, todayhumor_posts.content_text),
+        content_images_json = COALESCE(excluded.content_images_json, todayhumor_posts.content_images_json),
+        source_text = COALESCE(excluded.source_text, todayhumor_posts.source_text),
+        detail_fetched_at = COALESCE(excluded.detail_fetched_at, todayhumor_posts.detail_fetched_at),
         updated_at = datetime('now')
     '''
 
@@ -227,10 +340,33 @@ def save_posts(cur: sqlite3.Cursor, items: list[dict]) -> int:
                 item.get("category"),
                 item.get("score"),
                 json.dumps(item, ensure_ascii=False),
+                item.get("content_html"),
+                item.get("content_text"),
+                json.dumps(item.get("content_images_json", []), ensure_ascii=False) if item.get("content_images_json") is not None else None,
+                item.get("source_text"),
+                item.get("detail_fetched_at"),
             ),
         )
         saved += 1
     return saved
+
+
+def enrich_items_with_details(items: list[dict], *, sleep_sec: float = 0.3) -> int:
+    updated = 0
+    for item in items:
+        url = item.get("url")
+        if not url:
+            continue
+        html_text = fetch(url)
+        if not html_text:
+            continue
+        detail = parse_detail_page(html_text)
+        item.update(detail)
+        item["detail_fetched_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        updated += 1
+        if sleep_sec:
+            time.sleep(sleep_sec)
+    return updated
 
 
 def annotate_good_items(items: list[dict]) -> list[dict]:
@@ -277,6 +413,12 @@ def main() -> None:
     ap.add_argument("--tips-boards", default="")
     ap.add_argument("--db", default=str(DEFAULT_DB))
     ap.add_argument("--save", action="store_true")
+    ap.add_argument("--fetch-details", action="store_true")
+    ap.add_argument(
+        "--detail-categories",
+        default="",
+        help="상세 수집할 카테고리 선택 (콤마 구분: good,humor,tip). 비우면 전체",
+    )
     args = ap.parse_args()
 
     all_items = []
@@ -318,6 +460,13 @@ def main() -> None:
             score = tip_score(item)
             board_name = item.get("board", "")
             print(f"{score:.2f} | {board_name} | {item['title']} | 추천 {item['reco']} / 댓글 {item['comments']} / 조회 {item['views']} | {item['url']}")
+
+    if args.fetch_details:
+        allowed_categories = parse_detail_categories(args.detail_categories)
+        detail_items = filter_items_for_detail_categories(all_items, allowed_categories)
+        print_detail_fetch_plan(detail_items, allowed_categories)
+        detail_count = enrich_items_with_details(detail_items)
+        print(f"\n상세 수집 완료: {detail_count}건")
 
     if args.save:
         conn = sqlite3.connect(Path(args.db))
