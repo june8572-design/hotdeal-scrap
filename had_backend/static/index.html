@@ -430,11 +430,15 @@
                     container.innerHTML = '<div class="text-sm text-slate-500 text-center py-4">프리셋이 없습니다.</div>';
                     return;
                 }
-                const sourceTypeLabels = { hotdeal: 'HOTDEAL', todayhumor_tip: '꿀팁', todayhumor_good: '좋은글', todayhumor_fun: '유머글' };
-                const sourceTypeColors = { hotdeal: 'sky', todayhumor_tip: 'emerald', todayhumor_good: 'amber', todayhumor_fun: 'rose' };
+                // Tailwind 동적 클래스 방지: 미리 정의된 스타일
+                const typeStyles = {
+                    hotdeal: { badge: 'bg-sky-500/20 text-sky-400', toggle: 'peer-checked:bg-sky-600', label: 'HOTDEAL' },
+                    todayhumor_tip: { badge: 'bg-emerald-500/20 text-emerald-400', toggle: 'peer-checked:bg-emerald-600', label: '꿀팁' },
+                    todayhumor_good: { badge: 'bg-amber-500/20 text-amber-400', toggle: 'peer-checked:bg-amber-600', label: '좋은글' },
+                    todayhumor_fun: { badge: 'bg-rose-500/20 text-rose-400', toggle: 'peer-checked:bg-rose-600', label: '유머글' },
+                };
                 container.innerHTML = data.items.map(p => {
-                    const color = sourceTypeColors[p.source_type] || 'slate';
-                    const label = sourceTypeLabels[p.source_type] || p.source_type || 'UNKNOWN';
+                    const style = typeStyles[p.source_type] || { badge: 'bg-slate-500/20 text-slate-400', toggle: 'peer-checked:bg-slate-600', label: p.source_type || '?' };
                     return `
                     <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
                         <div class="flex justify-between items-center mb-2">
@@ -443,13 +447,13 @@
                                 <p class="text-[10px] text-slate-500">${p.interval_min}분 주기</p>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" class="sr-only peer preset-toggle" data-id="${p.id}" ${p.is_active === 1 ? 'checked' : ''} onchange="togglePreset(${p.id}, this.checked)">
-                                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-${color}-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-${color}-600"></div>
+                                <input type="checkbox" class="sr-only peer" ${p.is_active === 1 ? 'checked' : ''} onchange="togglePreset(${p.id}, this.checked)">
+                                <div class="w-11 h-6 bg-slate-700 rounded-full peer ${style.toggle} peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                             </label>
                         </div>
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-2">
-                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-${color}-500/20 text-${color}-400 font-bold">${label}</span>
+                                <span class="text-[9px] px-1.5 py-0.5 rounded ${style.badge} font-bold">${style.label}</span>
                                 <span class="text-[9px] ${p.is_active === 1 ? 'text-emerald-400' : 'text-slate-500'}">${p.is_active === 1 ? '활성' : '비활성'}</span>
                             </div>
                             <div class="flex items-center gap-1">
@@ -549,15 +553,24 @@
                     const categoryBadge = j.category ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">${j.category}</span>` : '';
                     
                     // 타겟 선택 드롭다운 (target_id가 없는 경우)
-                    const targetSelect = !j.target_id && targets.length > 0 ? `
+                    let targetSelect = '';
+                    if (!j.target_id) {
+                        if (targets.length > 0) {
+                            targetSelect = `
                         <div class="mb-3">
-                            <label class="text-[10px] text-slate-400 mb-1 block">게시판 선택</label>
+                            <label class="text-[10px] text-slate-400 mb-1 block">📝 게시판 선택 (어디에 올릴지)</label>
                             <select id="job-target-${j.id}" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs">
                                 <option value="">-- 게시판 선택 --</option>
                                 ${targets.map(t => `<option value="${t.id}">${t.name} (${t.target_url.substring(0,30)}...)</option>`).join('')}
                             </select>
-                        </div>
-                    ` : '';
+                        </div>`;
+                        } else {
+                            targetSelect = `
+                        <div class="mb-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                            <p class="text-[10px] text-amber-400">⚠️ 게시판(타겟)이 등록되지 않았습니다. "카페 활동"에서 타겟을 먼저 추가해주세요.</p>
+                        </div>`;
+                        }
+                    }
                     
                     return `
                 <div class="glass p-5 rounded-2xl border-l-4 ${j.job_type === 'HOTDEAL' ? 'border-sky-500 bg-sky-500/5' : j.job_type === 'TODAYHUMOR' ? 'border-cyan-500 bg-cyan-500/5' : 'border-purple-500 bg-purple-500/5'}">
@@ -753,20 +766,24 @@
                 container.innerHTML = '<div class="text-sm text-slate-500 text-center py-8 col-span-2">수집된 글 소스가 없습니다.</div>';
                 return;
             }
-            const catColors = { tip: 'emerald', good: 'amber', fun: 'rose', product: 'sky' };
-            const catLabels = { tip: '꿀팁', good: '좋은글', fun: '유머글', product: '상품' };
+            // Tailwind 동적 클래스 문제 방지: 미리 정의된 매핑 사용
+            const catStyles = {
+                tip: { badge: 'bg-emerald-500/20 text-emerald-400', border: 'border-emerald-500/30', label: '꿀팁' },
+                good: { badge: 'bg-amber-500/20 text-amber-400', border: 'border-amber-500/30', label: '좋은글' },
+                fun: { badge: 'bg-rose-500/20 text-rose-400', border: 'border-rose-500/30', label: '유머글' },
+                product: { badge: 'bg-sky-500/20 text-sky-400', border: 'border-sky-500/30', label: '상품' },
+            };
             container.innerHTML = items.map(s => {
-                const color = catColors[s.category] || 'slate';
-                const label = catLabels[s.category] || s.category || '미분류';
-                const preview = (s.content_text || s.title || '').substring(0, 100);
+                const style = catStyles[s.category] || { badge: 'bg-slate-500/20 text-slate-400', border: 'border-slate-500/30', label: s.category || '미분류' };
+                const preview = (s.content_text || s.title || '').substring(0, 80);
                 return `
-                <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 hover:border-${color}-500/30 transition cursor-pointer" onclick="previewSource(${s.id})">
+                <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 hover:${style.border} transition cursor-pointer" onclick="previewSource(${s.id})">
                     <div class="flex justify-between items-start mb-1">
-                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-${color}-500/20 text-${color}-400 font-bold">${label}</span>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded ${style.badge} font-bold">${style.label}</span>
                         <span class="text-[9px] text-slate-500">${s.used_count || 0}회 사용</span>
                     </div>
                     <h4 class="text-xs font-bold text-slate-200 mb-1 truncate">${s.title}</h4>
-                    <p class="text-[10px] text-slate-400 line-clamp-2">${preview}...</p>
+                    <p class="text-[10px] text-slate-400">${preview}...</p>
                 </div>`;
             }).join('');
         }
