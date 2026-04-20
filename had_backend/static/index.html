@@ -733,11 +733,13 @@
             }
         };
 
+        // === 탭 전환 ===
+        let currentArticleFilter = '';
+
         function refresh() { fetchStats(); fetchBCStats(); fetchPresets(); fetchTargets(); fetchJobs(); fetchLogs(); fetchNaverDealsKeepPages(); fetchArticleSources(); }
         refresh();
         setInterval(refresh, 15000);
-
-        // === 탭 전환 ===
+        
         function switchSourceTab(tab) {
             document.getElementById('source-tab-deals').classList.toggle('hidden', tab !== 'deals');
             document.getElementById('source-tab-articles').classList.toggle('hidden', tab !== 'articles');
@@ -746,8 +748,6 @@
         }
 
         // === 글 소스 관련 ===
-        let currentArticleFilter = '';
-
         async function fetchArticleSources() {
             try {
                 const params = { page_size: 50 };
