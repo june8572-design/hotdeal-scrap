@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>네이버 스토어 딜 조회 - HAD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap');
+        body { font-family: 'Pretendard', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .neon-blue { color: #38bdf8; text-shadow: 0 0 10px rgba(56, 189, 248, 0.5); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold neon-blue">네이버 스토어 딜 조회</h1>
+                <p class="text-slate-400 text-sm">스크래핑된 네이버/네이버쇼핑 제품 목록</p>
+            </div>
+            <div class="flex gap-3 items-center">
+                <a href="/" class="glass p-2 rounded-lg hover:bg-slate-700 transition flex items-center gap-2 text-slate-300">
+                    <i data-lucide="home" class="w-5 h-5"></i>
+                    <span class="text-sm font-medium hidden md:inline">메인으로</span>
+                </a>
+                <a href="/brandconnect" class="glass p-2 rounded-lg hover:bg-slate-700 transition flex items-center gap-2 text-orange-400">
+                    <i data-lucide="link2" class="w-5 h-5"></i>
+                    <span class="text-sm font-medium hidden md:inline">브랜드커넥터</span>
+                </a>
+            </div>
+        </header>
+
+        <div class="glass p-6 rounded-2xl mb-6">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="select-all" class="w-5 h-5 rounded bg-slate-700 border-slate-600 text-sky-500 focus:ring-sky-500 focus:ring-offset-slate-800">
+                        <span class="text-sm font-medium text-slate-200">전체 선택</span>
+                    </label>
+                    <span class="text-xs text-slate-500" id="selected-count">0개 선택됨</span>
+                </div>
+                <button id="generate-link-btn" onclick="generateLinks()" class="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-lg transition flex items-center gap-2 font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i data-lucide="link" class="w-4 h-4"></i>
+                    링크 생성
+                </button>
+            </div>
+        </div>
+
+        <div class="glass p-6 rounded-2xl">
+            <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+                <h2 class="text-lg font-bold flex items-center gap-2 text-slate-200">
+                    <i data-lucide="shopping-bag" class="w-5 h-5 text-orange-400"></i>
+                    제품 목록
+                </h2>
+                <span class="text-xs text-slate-500" id="total-count">전체: 0개</span>
+            </div>
+            
+            <div class="overflow-x-auto max-h-[600px] overflow-y-auto scrollbar-thin" id="deals-container">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead class="sticky top-0 bg-slate-800/90 backdrop-blur z-10">
+                        <tr class="text-slate-500 border-b border-slate-700">
+                            <th class="py-3 px-4 font-medium w-10"></th>
+                            <th class="py-3 px-4 font-medium">ID</th>
+                            <th class="py-3 px-4 font-medium">사이트</th>
+                            <th class="py-3 px-4 font-medium">제품명</th>
+                            <th class="py-3 px-4 font-medium">가격</th>
+                            <th class="py-3 px-4 font-medium">제휴</th>
+                            <th class="py-3 px-4 font-medium">URL타입</th>
+                            <th class="py-3 px-4 font-medium">Canonical 상품명</th>
+                            <th class="py-3 px-4 font-medium">할인률</th>
+                            <th class="py-3 px-4 font-medium">수수료</th>
+                            <th class="py-3 px-4 font-medium">수집일</th>
+                            <th class="py-3 px-4 font-medium">BC 상태</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deal-list" class="divide-y divide-slate-800/50"></tbody>
+                </table>
+                <div id="loading-indicator" class="hidden text-center py-8 text-slate-500">
+                    <i data-lucide="loader" class="w-6 h-6 animate-spin mx-auto mb-2"></i>
+                    <span class="text-sm">Loading...</span>
+                </div>
+                <div id="load-more-container" class="text-center py-4">
+                    <button id="load-more-btn" onclick="loadMore()" class="text-sm text-slate-400 hover:text-sky-400 transition">
+                        더 보기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="toast" class="fixed bottom-6 right-6 glass px-4 py-3 rounded-xl text-sm font-medium hidden z-50"></div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        let currentPage = 1;
+        const pageSize = 10;
+        let totalItems = 0;
+        let allDeals = [];
+        let isLoading = false;
+
+        async function fetchDeals(page = 1, append = false) {
+            if (isLoading) return;
+            isLoading = true;
+            
+            document.getElementById('loading-indicator').classList.remove('hidden');
+            
+            try {
+                const res = await fetch(`/api/v1/naver/deals?page=${page}&page_size=${pageSize}`);
+                const data = await res.json();
+                
+                if (append) {
+                    allDeals = [...allDeals, ...data.items];
+                } else {
+                    allDeals = data.items;
+                }
+                
+                totalItems = data.total;
+                currentPage = data.page;
+                
+                document.getElementById('total-count').textContent = `전체: ${totalItems}개`;
+                
+                renderDeals(append);
+                updateLoadMoreVisibility();
+            } catch (e) {
+                showToast('데이터 로드 실패: ' + e.message, 'error');
+            } finally {
+                isLoading = false;
+                document.getElementById('loading-indicator').classList.add('hidden');
+            }
+        }
+
+        function renderDeals(append = false) {
+            const container = document.getElementById('deal-list');
+            
+            const html = allDeals.map(deal => {
+                const bcStatus = deal.brand_connector_status || 'processing';
+                let statusBadge = '';
+                let statusClass = '';
+                
+                if (bcStatus === 'success') {
+                    statusBadge = '성공';
+                    statusClass = 'bg-emerald-500/20 text-emerald-400';
+                } else if (bcStatus === 'failed') {
+                    statusBadge = '실패';
+                    statusClass = 'bg-rose-500/20 text-rose-400';
+                } else {
+                    statusBadge = '처리중';
+                    statusClass = 'bg-yellow-500/20 text-yellow-400';
+                }
+                
+                let affiliateBadge = '-';
+                let affiliateClass = 'text-slate-500';
+                if (deal.is_affiliate === 1) {
+                    affiliateBadge = '제휴';
+                    affiliateClass = 'text-emerald-400 bg-emerald-500/20';
+                } else if (deal.is_affiliate === 0) {
+                    affiliateBadge = '비제휴';
+                    affiliateClass = 'text-rose-400 bg-rose-500/20';
+                }
+
+                const affiliateType = deal.affiliate_url_type || '-';
+                const canonicalName = deal.canonical_product_name || '-';
+                
+                const discountRate = deal.discount_rate ? `<span class="text-rose-400 font-bold">-${deal.discount_rate}%</span>` : '-';
+                const commission = deal.commission ? `<span class="text-sky-400">${deal.commission}%</span>` : '-';
+                
+                return `
+                    <tr class="hover:bg-slate-800/30 transition">
+                        <td class="py-3 px-4">
+                            <input type="checkbox" class="deal-checkbox w-4 h-4 rounded bg-slate-700 border-slate-600 text-sky-500 focus:ring-sky-500" 
+                                data-id="${deal.id}" onchange="updateSelectedCount()">
+                        </td>
+                        <td class="py-3 px-4 text-slate-500 text-xs">${deal.id}</td>
+                        <td class="py-3 px-4">
+                            <span class="text-xs font-medium ${deal.site === '네이버' ? 'text-blue-400' : 'text-green-400'}">${deal.site}</span>
+                        </td>
+                        <td class="py-3 px-4 font-medium text-slate-200 truncate max-w-[300px]" title="${deal.title}">${deal.title}</td>
+                        <td class="py-3 px-4 text-emerald-400 font-bold text-sm">${deal.price || '-'}</td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-1 rounded-full text-[10px] font-bold ${affiliateClass}">${affiliateBadge}</span>
+                        </td>
+                        <td class="py-3 px-4 text-xs text-slate-400">${affiliateType}</td>
+                        <td class="py-3 px-4 text-xs text-slate-300 truncate max-w-[240px]" title="${canonicalName}">${canonicalName}</td>
+                        <td class="py-3 px-4 text-sm">${discountRate}</td>
+                        <td class="py-3 px-4 text-sm">${commission}</td>
+                        <td class="py-3 px-4 text-slate-500 text-xs">${deal.fetched_at ? new Date(deal.fetched_at).toLocaleDateString() : '-'}</td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-1 rounded-full text-[10px] font-bold ${statusClass}">${statusBadge}</span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            if (append) {
+                container.innerHTML += html;
+            } else {
+                container.innerHTML = html;
+            }
+            
+            lucide.createIcons();
+        }
+
+        function updateLoadMoreVisibility() {
+            const btn = document.getElementById('load-more-btn');
+            const container = document.getElementById('load-more-container');
+            
+            if (allDeals.length >= totalItems) {
+                container.classList.add('hidden');
+            } else {
+                container.classList.remove('hidden');
+            }
+        }
+
+        function loadMore() {
+            fetchDeals(currentPage + 1, true);
+        }
+
+        document.getElementById('select-all').addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.deal-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = this.checked;
+            });
+            updateSelectedCount();
+        });
+
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('.deal-checkbox:checked');
+            document.getElementById('selected-count').textContent = `${checkboxes.length}개 선택됨`;
+            
+            const btn = document.getElementById('generate-link-btn');
+            btn.disabled = checkboxes.length === 0;
+        }
+
+        async function generateLinks() {
+            const checkboxes = document.querySelectorAll('.deal-checkbox:checked');
+            const dealIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.id));
+            
+            if (dealIds.length === 0) {
+                showToast('선택된 딜이 없습니다.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('generate-link-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> 처리 중...';
+            lucide.createIcons();
+
+            try {
+                const res = await fetch('/api/v1/naver/generate-links', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({deal_ids: dealIds})
+                });
+                const data = await res.json();
+                
+                if (data.ok) {
+                    showToast(`${dealIds.length}개 딜의 링크 생성이 시작되었습니다.`, 'success');
+                    setTimeout(() => fetchDeals(), 2000);
+                } else {
+                    showToast(data.message || '오류가 발생했습니다.', 'error');
+                }
+            } catch (e) {
+                showToast('요청 실패: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="link" class="w-4 h-4"></i> 링크 생성';
+                lucide.createIcons();
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `fixed bottom-6 right-6 glass px-4 py-3 rounded-xl text-sm font-medium z-50 ${
+                type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+            }`;
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        fetchDeals();
+    </script>
+</body>
+</html>

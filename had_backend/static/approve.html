@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>작업 승인 - HAD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-200">
+    <div class="max-w-6xl mx-auto p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold">작업 승인</h1>
+            <button onclick="location.href='/'" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded">
+                메인으로
+            </button>
+        </div>
+        
+        <!-- 대기 중인 작업 -->
+        <section class="mb-8">
+            <h2 class="text-xl font-semibold mb-4">대기 중인 작업 (PENDING)</h2>
+            <div id="pending-jobs" class="space-y-4">
+                <div class="text-slate-400">로딩 중...</div>
+            </div>
+        </section>
+        
+        <!-- 승인된 작업 -->
+        <section>
+            <h2 class="text-xl font-semibold mb-4">승인된 작업 (APPROVED)</h2>
+            <div id="approved-jobs" class="space-y-4">
+                <div class="text-slate-400">로딩 중...</div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // API 호출 헬퍼
+        async function apiCall(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    headers: { 'Content-Type': 'application/json' },
+                    ...options
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error('API 호출 실패:', error);
+                alert('API 호출 실패: ' + error.message);
+                throw error;
+            }
+        }
+
+        // 작업 카드 렌더링
+        function renderJobCard(job, isPending = true) {
+            const card = document.createElement('div');
+            card.className = 'bg-slate-800 p-4 rounded-lg border border-slate-700';
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex-1">
+                        <div class="text-sm text-slate-400">ID: ${job.id} | ${job.job_type || 'N/A'}</div>
+                        <div class="font-semibold mt-1">${job.post_title || '제목 없음'}</div>
+                    </div>
+                    ${isPending ? `
+                    <div class="flex gap-2 ml-4">
+                        <button onclick="approveJob(${job.id})" 
+                                class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">
+                            승인
+                        </button>
+                        <button onclick="rejectJob(${job.id})" 
+                                class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">
+                            거부
+                        </button>
+                    </div>
+                    ` : ''}
+                </div>
+                <div class="text-sm text-slate-300 mb-2">
+                    ${job.content || '내용 없음'}
+                </div>
+                <div class="text-xs text-slate-500">
+                    ${job.post_url ? `<a href="${job.post_url}" target="_blank" class="underline">링크</a> | ` : ''}
+                    생성: ${job.created_at || 'N/A'}
+                </div>
+            `;
+            return card;
+        }
+
+        // 대기 중인 작업 조회
+        async function fetchPendingJobs() {
+            const container = document.getElementById('pending-jobs');
+            try {
+                const data = await apiCall('/api/v1/jobs?status=PENDING');
+                container.innerHTML = '';
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(job => {
+                        container.appendChild(renderJobCard(job, true));
+                    });
+                } else {
+                    container.innerHTML = '<div class="text-slate-400">대기 중인 작업이 없습니다.</div>';
+                }
+            } catch (error) {
+                container.innerHTML = '<div class="text-red-400">조회 실패</div>';
+            }
+        }
+
+        // 승인된 작업 조회
+        async function fetchApprovedJobs() {
+            const container = document.getElementById('approved-jobs');
+            try {
+                const data = await apiCall('/api/v1/jobs?status=APPROVED');
+                container.innerHTML = '';
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(job => {
+                        container.appendChild(renderJobCard(job, false));
+                    });
+                } else {
+                    container.innerHTML = '<div class="text-slate-400">승인된 작업이 없습니다.</div>';
+                }
+            } catch (error) {
+                container.innerHTML = '<div class="text-red-400">조회 실패</div>';
+            }
+        }
+
+        // 작업 승인
+        async function approveJob(jobId) {
+            if (!confirm(`작업 ${jobId}를 승인하시겠습니까?`)) return;
+            try {
+                await apiCall(`/api/v1/jobs/${jobId}/approve`, {
+                    method: 'POST',
+                    body: JSON.stringify({ content: '' })
+                });
+                alert('승인되었습니다.');
+                fetchPendingJobs();
+                fetchApprovedJobs();
+            } catch (error) {
+                // 이미 alert 처리됨
+            }
+        }
+
+        // 작업 거부
+        async function rejectJob(jobId) {
+            if (!confirm(`작업 ${jobId}를 거부하시겠습니까?`)) return;
+            try {
+                await apiCall(`/api/v1/jobs/${jobId}/reject`, {
+                    method: 'POST'
+                });
+                alert('거부되었습니다.');
+                fetchPendingJobs();
+                fetchApprovedJobs();
+            } catch (error) {
+                // 이미 alert 처리됨
+            }
+        }
+
+        // 초기 로드
+        fetchPendingJobs();
+        fetchApprovedJobs();
+
+        // 30초마다 자동 새로고침
+        setInterval(() => {
+            fetchPendingJobs();
+            fetchApprovedJobs();
+        }, 30000);
+    </script>
+</body>
+</html>

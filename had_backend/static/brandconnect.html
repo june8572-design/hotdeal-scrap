@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>브랜드커넥터 - HAD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap');
+        body { font-family: 'Pretendard', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .neon-orange { color: #fb923c; text-shadow: 0 0 10px rgba(251, 146, 60, 0.5); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .status-success { background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .status-error { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .status-pending { background: rgba(234, 179, 8, 0.2); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); }
+        .table-row:hover { background: rgba(56, 189, 248, 0.05); }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- 헤더 -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div>
+                <a href="/" class="text-2xl font-bold neon-orange hover:opacity-80 transition flex items-center gap-2">
+                    <i data-lucide="arrow-left" class="w-5 h-5"></i> HAD
+                </a>
+                <p class="text-slate-400 text-sm">브랜드커넥터 링크 발급 현황</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="last-updated" class="text-slate-500 text-xs">
+                    마지막 업데이트: --
+                </div>
+                <button onclick="manualRefresh()" class="glass p-2 rounded-lg hover:bg-slate-700 transition flex items-center gap-2 text-slate-300">
+                    <i data-lucide="refresh-cw" class="w-4 h-4" id="refresh-icon"></i>
+                    <span class="text-sm font-medium hidden md:inline">새로고침</span>
+                </button>
+                <a href="/" class="glass p-2 rounded-lg hover:bg-slate-700 transition flex items-center gap-2 text-slate-300">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                    <span class="text-sm font-medium hidden md:inline">대시보드</span>
+                </a>
+            </div>
+        </header>
+
+        <!-- 상단 통계 카드 -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            <div class="glass p-5 rounded-2xl">
+                <div class="flex items-center gap-3 mb-2">
+                    <i data-lucide="database" class="text-slate-400 w-5 h-5"></i>
+                    <h3 class="text-slate-400 text-xs font-medium">전체 건수</h3>
+                </div>
+                <p class="text-2xl font-bold" id="stat-total">-</p>
+            </div>
+            <div class="glass p-5 rounded-2xl border-l-4 border-emerald-500">
+                <div class="flex items-center gap-3 mb-2">
+                    <i data-lucide="check-circle" class="text-emerald-400 w-5 h-5"></i>
+                    <h3 class="text-slate-400 text-xs font-medium">성공</h3>
+                </div>
+                <p class="text-2xl font-bold text-emerald-400" id="stat-success">-</p>
+            </div>
+            <div class="glass p-5 rounded-2xl border-l-4 border-rose-500">
+                <div class="flex items-center gap-3 mb-2">
+                    <i data-lucide="x-circle" class="text-rose-400 w-5 h-5"></i>
+                    <h3 class="text-slate-400 text-xs font-medium">실패</h3>
+                </div>
+                <p class="text-2xl font-bold text-rose-400" id="stat-failed">-</p>
+            </div>
+            <div class="glass p-5 rounded-2xl border-l-4 border-yellow-500">
+                <div class="flex items-center gap-3 mb-2">
+                    <i data-lucide="clock" class="text-yellow-400 w-5 h-5"></i>
+                    <h3 class="text-slate-400 text-xs font-medium">처리중</h3>
+                </div>
+                <p class="text-2xl font-bold text-yellow-400" id="stat-pending">-</p>
+            </div>
+            <div class="glass p-5 rounded-2xl border-l-4 border-sky-500">
+                <div class="flex items-center gap-3 mb-2">
+                    <i data-lucide="percent" class="text-sky-400 w-5 h-5"></i>
+                    <h3 class="text-slate-400 text-xs font-medium">성공률</h3>
+                </div>
+                <p class="text-2xl font-bold text-sky-400" id="stat-rate">-%</p>
+            </div>
+        </div>
+
+        <!-- 진행 상황 테이블 -->
+        <section class="glass p-6 rounded-2xl mb-8">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-slate-700 pb-4">
+                <h2 class="text-xl font-bold flex items-center gap-3 text-orange-400">
+                    <i data-lucide="list" class="w-6 h-6"></i> 브랜드커넥터 진행 현황
+                </h2>
+                <div class="flex items-center gap-4">
+                    <div class="flex gap-2">
+                        <button onclick="filterTable('all')" class="filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-slate-700 text-white" data-filter="all">전체</button>
+                        <button onclick="filterTable('success')" class="filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-400" data-filter="success">성공</button>
+                        <button onclick="filterTable('failed')" class="filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-400" data-filter="failed">실패</button>
+                        <button onclick="filterTable('pending')" class="filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-400" data-filter="pending">처리중</button>
+                    </div>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead>
+                        <tr class="text-slate-500 border-b border-slate-800">
+                            <th class="py-3 px-4 font-medium">ID</th>
+                            <th class="py-3 px-4 font-medium">제품명</th>
+                            <th class="py-3 px-4 font-medium">사이트</th>
+                            <th class="py-3 px-4 font-medium">제휴판별</th>
+                            <th class="py-3 px-4 font-medium">URL타입</th>
+                            <th class="py-3 px-4 font-medium">Canonical 상품명</th>
+                            <th class="py-3 px-4 font-medium">상태</th>
+                            <th class="py-3 px-4 font-medium">링크</th>
+                            <th class="py-3 px-4 font-medium">재시도</th>
+                            <th class="py-3 px-4 font-medium">마지막 시도</th>
+                            <th class="py-3 px-4 font-medium text-right">작업</th>
+                        </tr>
+                    </thead>
+                    <tbody id="brandconnect-list" class="divide-y divide-slate-800/50"></tbody>
+                </table>
+                <div id="empty-state" class="hidden text-center py-12 text-slate-600">
+                    <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                    <p>브랜드커넥터 처리 대상이 없습니다.</p>
+                    <p class="text-xs mt-2">네이버/네이버쇼핑 딜을 수집해주세요.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 실패 로그 섹션 -->
+        <section class="glass p-6 rounded-2xl">
+            <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+                <h2 class="text-xl font-bold flex items-center gap-3 text-rose-400">
+                    <i data-lucide="alert-triangle" class="w-6 h-6"></i> 실패 로그
+                    <span id="fail-count" class="text-sm font-normal text-slate-500">(0건)</span>
+                </h2>
+            </div>
+            <div id="error-logs" class="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                <div class="text-center py-8 text-slate-600">
+                    <i data-lucide="check-circle" class="w-8 h-8 mx-auto mb-2 opacity-50 text-emerald-400"></i>
+                    <p>실패한 건이 없습니다.</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 토스트 알림 -->
+    <div id="toast" class="fixed bottom-4 right-4 glass px-4 py-3 rounded-xl hidden z-50">
+        <div class="flex items-center gap-3">
+            <i data-lucide="check" class="w-5 h-5 text-emerald-400" id="toast-icon"></i>
+            <span id="toast-message" class="text-sm"></span>
+        </div>
+    </div>
+
+    <script src="/static/shared.js"></script>
+    <script>
+        lucide.createIcons();
+        let currentFilter = 'all';
+        let allItems = [];
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toast-icon');
+            const toastMessage = document.getElementById('toast-message');
+            
+            toastMessage.textContent = message;
+            toastIcon.className = isError ? 'w-5 h-5 text-rose-400' : 'w-5 h-5 text-emerald-400';
+            toastIcon.setAttribute('data-lucide', isError ? 'x-circle' : 'check');
+            
+            toast.classList.remove('hidden');
+            lucide.createIcons();
+            
+            setTimeout(() => { toast.classList.add('hidden'); }, 3000);
+        }
+
+        function filterTable(filter) {
+            currentFilter = filter;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.dataset.filter === filter) {
+                    btn.className = 'filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-slate-700 text-white';
+                } else {
+                    btn.className = 'filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-400';
+                }
+            });
+            renderTable();
+        }
+
+        function getStatusClass(status) {
+            switch(status) {
+                case 'success': return 'status-success';
+                case 'failed': return 'status-error';
+                default: return 'status-pending';
+            }
+        }
+
+        function getStatusText(status) {
+            switch(status) {
+                case 'success': return '성공';
+                case 'failed': return '실패';
+                default: return '처리중';
+            }
+        }
+
+        function formatDate(timestamp) {
+            if (!timestamp) return '-';
+            const date = new Date(timestamp * 1000);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+            
+            if (diff < 60) return `${diff}초 전`;
+            if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+            return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function truncateText(text, maxLen) {
+            if (!text) return '-';
+            return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
+        }
+
+        function copyToClipboard(text) {
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('링크가 클립보드에 복사되었습니다.');
+            }).catch(() => {
+                showToast('클립보드 복사에 실패했습니다.', true);
+            });
+        }
+
+        function renderTable() {
+            const filteredItems = currentFilter === 'all'
+                ? allItems
+                : allItems.filter(item => {
+                    if (currentFilter === 'pending') {
+                        return item.status === 'pending' || item.status === 'processing' || !item.status;
+                    }
+                    return item.status === currentFilter;
+                });
+            
+            const container = document.getElementById('brandconnect-list');
+            const emptyState = document.getElementById('empty-state');
+            
+            if (filteredItems.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            emptyState.classList.add('hidden');
+            container.innerHTML = filteredItems.map(item => `
+                <tr class="table-row transition" data-status="${item.status}">
+                    <td class="py-4 px-4 text-xs text-slate-500 font-mono">#${item.id}</td>
+                    <td class="py-4 px-4">
+                        <div class="font-medium text-slate-200 max-w-[200px] truncate" title="${item.title || ''}">
+                            ${truncateText(item.title, 30)}
+                        </div>
+                    </td>
+                    <td class="py-4 px-4">
+                        <span class="text-xs text-slate-400">${item.site || '-'}</span>
+                    </td>
+                    <td class="py-4 px-4">
+                        ${item.is_affiliate_candidate === 1
+                            ? '<span class="text-[11px] px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">제휴</span>'
+                            : item.is_affiliate_candidate === 0
+                                ? '<span class="text-[11px] px-2 py-1 rounded-full bg-rose-500/20 text-rose-400 font-medium">비제휴</span>'
+                                : '<span class="text-xs text-slate-500">미확인</span>'
+                        }
+                    </td>
+                    <td class="py-4 px-4 text-xs text-slate-400">
+                        ${item.affiliate_url_type || '-'}
+                    </td>
+                    <td class="py-4 px-4">
+                        <div class="text-xs text-slate-300 max-w-[220px] truncate" title="${item.canonical_product_name || ''}">
+                            ${truncateText(item.canonical_product_name || '-', 36)}
+                        </div>
+                    </td>
+                    <td class="py-4 px-4">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusClass(item.status)}">
+                            ${getStatusText(item.status)}
+                        </span>
+                    </td>
+                    <td class="py-4 px-4">
+                        ${item.link 
+                            ? `<button onclick="copyToClipboard('${item.link.replace(/'/g, "\\'")}')" class="text-sky-400 hover:text-sky-300 text-xs underline truncate max-w-[150px] block" title="${item.link}">${truncateText(item.link, 25)}</button>`
+                            : '<span class="text-slate-600 text-xs">-</span>'
+                        }
+                    </td>
+                    <td class="py-4 px-4">
+                        <span class="text-xs ${item.retry_count > 0 ? 'text-amber-400' : 'text-slate-500'}">
+                            ${item.retry_count || 0}회
+                        </span>
+                    </td>
+                    <td class="py-4 px-4 text-xs text-slate-500">
+                        ${formatDate(item.last_attempt)}
+                    </td>
+                    <td class="py-4 px-4 text-right">
+                        ${item.status !== 'success' 
+                            ? `<button onclick="retryItem(${item.id}, this)" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1 mx-auto">
+                                 <i data-lucide="rotate-cw" class="w-3 h-3"></i> 재시도
+                                </button>`
+                            : '<span class="text-emerald-400 text-xs">✓ 완료</span>'
+                        }
+                    </td>
+                </tr>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function renderErrorLogs() {
+            const failedItems = allItems.filter(item => item.status === 'failed' && item.error);
+            const container = document.getElementById('error-logs');
+            document.getElementById('fail-count').textContent = `(${failedItems.length}건)`;
+            
+            if (failedItems.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-600">
+                        <i data-lucide="check-circle" class="w-8 h-8 mx-auto mb-2 opacity-50 text-emerald-400"></i>
+                        <p>실패한 건이 없습니다.</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+            
+            container.innerHTML = failedItems.slice(0, 20).map(item => `
+                <div class="bg-rose-950/30 border border-rose-900/50 rounded-xl p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-mono text-rose-400">#${item.id}</span>
+                            <span class="text-sm font-medium text-slate-200">${truncateText(item.title, 40)}</span>
+                        </div>
+                        <span class="text-xs text-slate-500">${formatDate(item.last_attempt)}</span>
+                    </div>
+                    <p class="text-xs text-rose-300 mb-3">${item.error}</p>
+                    <button onclick="retryItem(${item.id}, this)" class="text-xs text-orange-400 hover:text-orange-300 font-medium">
+                        → 재시도
+                    </button>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        async function fetchStats() {
+            try {
+                const data = await HAD.fetchBrandconnectStats();
+                HAD.applyBrandconnectStats(data, {
+                    total: 'stat-total',
+                    success: 'stat-success',
+                    failed: 'stat-failed',
+                    pending: 'stat-pending',
+                    success_rate: 'stat-rate',
+                });
+            } catch (e) {
+                console.error('Failed to fetch stats:', e);
+            }
+        }
+
+        async function fetchList() {
+            try {
+                const data = await HAD.fetchJson('/api/v1/brandconnect/list');
+                allItems = data.items || [];
+                renderTable();
+                renderErrorLogs();
+            } catch (e) {
+                console.error('Failed to fetch list:', e);
+                showToast('목록을 불러오지 못했습니다.', true);
+                document.getElementById('brandconnect-list').innerHTML = '';
+                document.getElementById('empty-state').classList.remove('hidden');
+            }
+        }
+
+        async function retryItem(dealId, triggerButton) {
+            const btn = triggerButton.closest('button');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader" class="w-3 h-3 animate-spin"></i> 처리중...';
+            lucide.createIcons();
+            
+            try {
+                await HAD.fetchJson(`/api/v1/brandconnect/retry/${dealId}`, { method: 'POST' });
+                showToast(`#${dealId} 재시도가 시작되었습니다.`);
+                setTimeout(() => refresh(), 1000);
+            } catch (e) {
+                showToast(e.message || '재시도 중 오류가 발생했습니다.', true);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                lucide.createIcons();
+            }
+        }
+
+        function manualRefresh() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('animate-spin');
+            refresh();
+            setTimeout(() => icon.classList.remove('animate-spin'), 500);
+        }
+
+        function refresh() {
+            fetchStats();
+            fetchList();
+            document.getElementById('last-updated').textContent = 
+                `마지막 업데이트: ${new Date().toLocaleTimeString('ko-KR')}`;
+        }
+
+        // Initial load
+        refresh();
+        
+        // Auto-refresh every 15 seconds
+        setInterval(refresh, 15000);
+    </script>
+</body>
+</html>
