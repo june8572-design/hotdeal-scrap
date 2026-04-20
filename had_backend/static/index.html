@@ -106,24 +106,11 @@
             <div class="space-y-6">
                 <section class="glass p-6 rounded-2xl">
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-bold flex items-center gap-2 text-sky-400"><i data-lucide="package" class="w-5 h-5"></i> 수집 설정</h2>
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-sky-400"><i data-lucide="package" class="w-5 h-5"></i> 수집 프리셋</h2>
+                        <button onclick="toggleModal('preset-modal')" class="text-sky-400 text-xs font-bold">+ 추가</button>
                     </div>
-                    <!-- hotdeal.zip 고정 카드 -->
-                    <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
-                        <div class="flex justify-between items-center mb-3">
-                            <div>
-                                <h4 class="text-sm font-bold text-slate-200 mb-1">hotdeal.zip</h4>
-                                <p class="text-[10px] text-slate-500">60분 주기 자동 수집</p>
-                            </div>
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="hotdeal-toggle" class="sr-only peer" onchange="toggleHotdealPreset()">
-                                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-sky-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
-                            </label>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 font-bold">HOTDEAL</span>
-                            <span id="hotdeal-status" class="text-[9px] text-slate-500">로딩 중...</span>
-                        </div>
+                    <div class="space-y-3" id="preset-list">
+                        <div class="text-sm text-slate-500 text-center py-4">로딩 중...</div>
                     </div>
                 </section>
                 <section class="glass p-6 rounded-2xl">
@@ -152,64 +139,78 @@
             </div>
         </div>
 
-        <!-- 네이버 스토어 딜 조회 섹션 (체크박스 + 무한 스크롤) -->
-        <section id="naver-deals-section" class="glass p-6 rounded-3xl mb-12 scroll-mt-8">
+        <!-- 수집된 소스 섹션 (탭: 네이버딜 / 글 소스) -->
+        <section id="sources-section" class="glass p-6 rounded-3xl mb-8 scroll-mt-8">
             <div class="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
-                <h2 class="text-2xl font-bold flex items-center gap-3 text-green-400">
-                    <i data-lucide="shopping-bag" class="w-7 h-7"></i> 네이버 스토어 딜 조회
+                <h2 class="text-2xl font-bold flex items-center gap-3 text-cyan-400">
+                    <i data-lucide="layers" class="w-7 h-7"></i> 수집된 소스
                 </h2>
-                <span class="text-xs text-slate-500" id="naver-deals-count">전체 -개</span>
             </div>
-            
-            <!-- 헤더: 전체선택 + 링크 생성 버튼 -->
-            <div class="flex justify-between items-center mb-4 px-2">
-                <label class="flex items-center gap-2 cursor-pointer select-none">
-                    <input type="checkbox" id="select-all-naver" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500" onchange="toggleSelectAllNaver()">
-                    <span class="text-sm text-slate-300 font-medium">전체선택</span>
-                </label>
-                <button id="generate-links-btn" onclick="generateLinks()" class="bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded-lg transition flex items-center gap-2 font-bold text-sm">
-                    <i data-lucide="link" class="w-4 h-4"></i> 링크 생성
-                </button>
+            <!-- 탭 버튼 -->
+            <div class="flex gap-2 mb-6">
+                <button onclick="switchSourceTab('deals')" id="tab-deals" class="px-4 py-2 rounded-lg text-sm font-bold bg-green-600 text-white transition">네이버 딜</button>
+                <button onclick="switchSourceTab('articles')" id="tab-articles" class="px-4 py-2 rounded-lg text-sm font-bold bg-slate-700 text-slate-300 hover:bg-slate-600 transition">글 소스</button>
             </div>
-            
-            <!-- 테이블 -->
-            <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
-                <table class="w-full text-left text-sm border-collapse">
-                    <thead class="sticky top-0 z-10 bg-slate-800">
-                        <tr class="text-slate-500 border-b border-slate-800">
-                            <th class="py-3 px-4 font-medium w-10"></th>
-                            <th class="py-3 px-4 font-medium w-16">ID</th>
-                            <th class="py-3 px-4 font-medium w-20">사이트</th>
-                            <th class="py-3 px-4 font-medium">제목</th>
-                            <th class="py-3 px-4 font-medium w-24">가격</th>
-                            <th class="py-3 px-4 font-medium w-16">제휴</th>
-                            <th class="py-3 px-4 font-medium w-20">URL타입</th>
-                            <th class="py-3 px-4 font-medium w-44">Canonical 상품명</th>
-                            <th class="py-3 px-4 font-medium w-20">할인률</th>
-                            <th class="py-3 px-4 font-medium w-16">수수료</th>
-                            <th class="py-3 px-4 font-medium w-20">상태</th>
-                            <th class="py-3 px-4 font-medium w-40">링크</th>
-                        </tr>
-                    </thead>
-                    <tbody id="naver-deal-list" class="divide-y divide-slate-800/50">
-                        <tr><td colspan="7" class="py-8 text-center text-slate-500">로딩 중...</td></tr>
-                    </tbody>
-                </table>
+            <!-- 네이버 딜 탭 -->
+            <div id="source-tab-deals">
+                <div class="flex justify-between items-center mb-4 px-2">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" id="select-all-naver" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500" onchange="toggleSelectAllNaver()">
+                        <span class="text-sm text-slate-300 font-medium">전체선택</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <button onclick="generateArticleFromDeals()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 font-bold text-xs">
+                            <i data-lucide="file-text" class="w-3 h-3"></i> 글 생성
+                        </button>
+                        <button id="generate-links-btn" onclick="generateLinks()" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 font-bold text-xs">
+                            <i data-lucide="link" class="w-3 h-3"></i> 링크 생성
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead class="sticky top-0 z-10 bg-slate-800">
+                            <tr class="text-slate-500 border-b border-slate-800">
+                                <th class="py-2 px-3 font-medium w-10"></th>
+                                <th class="py-2 px-3 font-medium w-16">ID</th>
+                                <th class="py-2 px-3 font-medium">제목</th>
+                                <th class="py-2 px-3 font-medium w-24">가격</th>
+                                <th class="py-2 px-3 font-medium w-16">제휴</th>
+                                <th class="py-2 px-3 font-medium w-20">상태</th>
+                            </tr>
+                        </thead>
+                        <tbody id="naver-deal-list" class="divide-y divide-slate-800/50">
+                            <tr><td colspan="6" class="py-8 text-center text-slate-500">로딩 중...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-center mt-4">
+                    <button id="load-more-btn" onclick="loadMoreNaverDeals()" class="text-sm text-slate-400 hover:text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-800 transition">더보기</button>
+                </div>
             </div>
-            
-            <!-- 더보기 버튼 -->
-            <div class="text-center mt-4">
-                <button id="load-more-btn" onclick="loadMoreNaverDeals()" class="text-sm text-slate-400 hover:text-slate-300 px-4 py-2 rounded-lg hover:bg-slate-800 transition">
-                    더보기
-                </button>
+            <!-- 글 소스 탭 -->
+            <div id="source-tab-articles" class="hidden">
+                <div class="flex gap-2 mb-4">
+                    <button onclick="filterArticles('')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-cyan-600 text-white" data-cat="">전체</button>
+                    <button onclick="filterArticles('tip')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="tip">꿀팁</button>
+                    <button onclick="filterArticles('good')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="good">좋은글</button>
+                    <button onclick="filterArticles('fun')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="fun">유머글</button>
+                    <button onclick="filterArticles('product')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="product">상품</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2" id="article-source-list">
+                    <div class="text-sm text-slate-500 text-center py-8 col-span-2">로딩 중...</div>
+                </div>
             </div>
         </section>
+
+        <!-- 네이버 스토어 딜 조회 섹션 (기존 - 하위 호환) -->
+        <section id="naver-deals-section" class="hidden"></section>
     </div>
 
     <!-- 모달들 -->
     <div id="guide-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]"><div class="glass p-8 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto text-slate-300 text-sm"><h2 class="text-2xl font-bold text-sky-400 flex items-center gap-2 mb-6 border-b border-slate-700 pb-4"><i data-lucide="book-open" class="w-6 h-6"></i> HAD 사용 가이드</h2><div class="space-y-6 leading-relaxed"><p>1. <b>핫딜 수집</b>: 설정한 주기마다 새로운 딜을 찾아 AI 홍보글을 생성합니다.</p><p>2. <b>카페 활동</b>: 등록된 카페 게시판의 최신글을 스캔하여 댓글 대기열을 만듭니다.</p><p>3. <b>승인 대기열</b>: 모든 작업은 실제 실행 전 여기서 확인 및 수정이 가능합니다.</p></div><button onclick="toggleModal('guide-modal')" class="w-full mt-8 bg-sky-600 hover:bg-sky-500 text-white py-3 rounded-xl font-bold transition">닫기</button></div></div>
-    <div id="preset-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"><div class="glass p-8 rounded-2xl w-full max-w-md"><h2 class="text-xl font-bold mb-6 text-sky-400">신규 핫딜 수집 추가</h2><form id="preset-form" class="space-y-4"><input type="text" name="name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" placeholder="프리셋 이름" required><input type="text" name="target_url" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" value="https://hotdeal.zip/api/deals.php" required><input type="number" name="interval_min" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" value="60"><div class="flex items-center gap-2 py-2 text-sm"><input type="checkbox" name="needs_confirmation" id="chk-conf" checked><label for="chk-conf">실행 전 승인 대기</label></div><div class="flex gap-3 mt-8"><button type="button" onclick="toggleModal('preset-modal')" class="flex-1 px-4 py-3 rounded-xl bg-slate-700 font-bold">취소</button><button type="submit" class="flex-1 px-4 py-3 rounded-xl bg-sky-600 font-bold">생성</button></div><input type="hidden" name="action_type" value="PROMO"></form></div></div>
-    <div id="target-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"><div class="glass p-8 rounded-2xl w-full max-w-md"><h2 class="text-xl font-bold mb-6 text-purple-400">신규 카페 활동 추가</h2><form id="target-form" class="space-y-4"><input type="text" name="name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" placeholder="활동 이름" required><input type="text" name="target_url" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" placeholder="카페 메뉴 URL" required><div class="grid grid-cols-2 gap-4"><select name="activity_type" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm"><option value="COMMENT">새 글 댓글</option></select><input type="number" name="daily_limit" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" value="3" min="1"></div><div class="flex gap-3 mt-8"><button type="button" onclick="toggleModal('target-modal')" class="flex-1 px-4 py-3 rounded-xl bg-slate-700 font-bold">취소</button><button type="submit" class="flex-1 px-4 py-3 rounded-xl bg-purple-600 font-bold">등록</button></div></form></div></div>
+    <div id="preset-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"><div class="glass p-8 rounded-2xl w-full max-w-md"><h2 class="text-xl font-bold mb-6 text-sky-400">신규 수집 프리셋 추가</h2><form id="preset-form" class="space-y-4"><input type="text" name="name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" placeholder="프리셋 이름" required><div><label class="text-xs text-slate-400 mb-1 block">소스 타입</label><select name="source_type" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" onchange="updatePresetFields(this.value)"><option value="hotdeal">핫딜 (hotdeal.zip)</option><option value="todayhumor_tip">오늘의유머 꿀팁</option><option value="todayhumor_good">오늘의유머 좋은글</option><option value="todayhumor_fun">오늘의유머 유머글</option></select></div><input type="text" name="target_url" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" value="https://hotdeal.zip/api/deals.php" required><div class="grid grid-cols-2 gap-4"><div><label class="text-xs text-slate-400 mb-1 block">실행 주기 (분)</label><input type="number" name="interval_min" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" value="60" min="1"></div><div class="flex items-center gap-2 pt-5"><input type="checkbox" name="needs_confirmation" id="chk-conf" checked><label for="chk-conf" class="text-sm">실행 전 승인</label></div></div><input type="hidden" name="action_type" value="HOTDEAL"><div class="flex gap-3 mt-8"><button type="button" onclick="toggleModal('preset-modal')" class="flex-1 px-4 py-3 rounded-xl bg-slate-700 font-bold">취소</button><button type="submit" class="flex-1 px-4 py-3 rounded-xl bg-sky-600 font-bold">생성</button></div></form></div></div>
+    <div id="target-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"><div class="glass p-8 rounded-2xl w-full max-w-md"><h2 class="text-xl font-bold mb-6 text-purple-400">신규 카페 활동 추가</h2><form id="target-form" class="space-y-4"><input type="text" name="name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" placeholder="활동 이름" required><input type="text" name="target_url" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" placeholder="카페 메뉴 URL" required><div><label class="text-xs text-slate-400 mb-2 block">작성 카테고리 (복수 선택 가능)</label><div class="grid grid-cols-2 gap-2"><label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg cursor-pointer hover:bg-slate-700"><input type="checkbox" name="cat_product" value="product" class="target-category w-4 h-4 rounded border-slate-600 text-purple-500"><span class="text-sm">상품홍보</span></label><label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg cursor-pointer hover:bg-slate-700"><input type="checkbox" name="cat_good" value="good" class="target-category w-4 h-4 rounded border-slate-600 text-purple-500"><span class="text-sm">좋은글</span></label><label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg cursor-pointer hover:bg-slate-700"><input type="checkbox" name="cat_fun" value="fun" class="target-category w-4 h-4 rounded border-slate-600 text-purple-500"><span class="text-sm">유머글</span></label><label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg cursor-pointer hover:bg-slate-700"><input type="checkbox" name="cat_tip" value="tip" class="target-category w-4 h-4 rounded border-slate-600 text-purple-500"><span class="text-sm">꿀팁글</span></label></div></div><div class="grid grid-cols-2 gap-4"><select name="activity_type" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm"><option value="POST">글 작성</option><option value="COMMENT">댓글 작성</option></select><input type="number" name="daily_limit" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" value="3" min="1"></div><div class="flex gap-3 mt-8"><button type="button" onclick="toggleModal('target-modal')" class="flex-1 px-4 py-3 rounded-xl bg-slate-700 font-bold">취소</button><button type="submit" class="flex-1 px-4 py-3 rounded-xl bg-purple-600 font-bold">등록</button></div></form></div></div>
     <div id="toast" class="fixed bottom-6 right-6 glass px-4 py-3 rounded-xl hidden z-[110] text-sm font-medium"></div>
 
     <script src="/static/shared.js"></script>
@@ -445,65 +446,111 @@
             } catch (e) { console.error('BC stats error:', e); }
         }
 
-        async function fetchHotdealPreset() {
+        async function fetchPresets() {
             try {
                 const data = await HAD.fetchJson('/api/v1/presets');
-                const hotdeal = data.items.find(p => p.name === 'hotdeal.zip');
-
-                if (hotdeal) {
-                    const toggle = document.getElementById('hotdeal-toggle');
-                    const status = document.getElementById('hotdeal-status');
-                    toggle.checked = hotdeal.is_active === 1;
-                    status.textContent = hotdeal.is_active === 1 ? '활성화됨' : '비활성화됨';
-                    status.className = hotdeal.is_active === 1 ? 'text-[9px] text-emerald-400 font-medium' : 'text-[9px] text-slate-500';
-                    window.hotdealPresetId = hotdeal.id;
-                } else {
-                    document.getElementById('hotdeal-status').textContent = '프리셋 없음';
+                const container = document.getElementById('preset-list');
+                if (data.items.length === 0) {
+                    container.innerHTML = '<div class="text-sm text-slate-500 text-center py-4">프리셋이 없습니다.</div>';
+                    return;
                 }
+                const sourceTypeLabels = { hotdeal: 'HOTDEAL', todayhumor_tip: '꿀팁', todayhumor_good: '좋은글', todayhumor_fun: '유머글' };
+                const sourceTypeColors = { hotdeal: 'sky', todayhumor_tip: 'emerald', todayhumor_good: 'amber', todayhumor_fun: 'rose' };
+                container.innerHTML = data.items.map(p => {
+                    const color = sourceTypeColors[p.source_type] || 'slate';
+                    const label = sourceTypeLabels[p.source_type] || p.source_type || 'UNKNOWN';
+                    return `
+                    <div class="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+                        <div class="flex justify-between items-center mb-2">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-200">${p.name}</h4>
+                                <p class="text-[10px] text-slate-500">${p.interval_min}분 주기</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" class="sr-only peer preset-toggle" data-id="${p.id}" ${p.is_active === 1 ? 'checked' : ''} onchange="togglePreset(${p.id}, this.checked)">
+                                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-${color}-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-${color}-600"></div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[9px] px-1.5 py-0.5 rounded bg-${color}-500/20 text-${color}-400 font-bold">${label}</span>
+                                <span class="text-[9px] ${p.is_active === 1 ? 'text-emerald-400' : 'text-slate-500'}">${p.is_active === 1 ? '활성' : '비활성'}</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <input type="number" value="${p.interval_min}" min="1" class="w-14 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-center" onchange="updatePresetInterval(${p.id}, this.value)" title="실행 주기 (분)">
+                                <button onclick="deletePreset(${p.id}, '${p.name.replace(/'/g, "\\'")}')" class="text-[10px] px-1.5 py-0.5 rounded bg-rose-600/20 text-rose-400 hover:bg-rose-600/30">삭제</button>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
             } catch (e) {
-                console.error('Preset fetch error:', e);
-                document.getElementById('hotdeal-status').textContent = '불러오기 실패';
+                console.error('Presets error:', e);
+                document.getElementById('preset-list').innerHTML = '<div class="text-sm text-rose-400 text-center py-4">프리셋을 불러오지 못했습니다.</div>';
             }
         }
 
-        async function toggleHotdealPreset() {
-            const toggle = document.getElementById('hotdeal-toggle');
-            const status = document.getElementById('hotdeal-status');
-            const isActive = toggle.checked ? 1 : 0;
-            
+        async function togglePreset(id, isActive) {
             try {
-                await HAD.fetchJson(`/api/v1/presets/${window.hotdealPresetId}/toggle`, {
-                    method: 'PATCH',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({is_active: isActive})
+                await HAD.fetchJson(`/api/v1/presets/${id}/toggle`, {
+                    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ is_active: isActive ? 1 : 0 })
                 });
-                status.textContent = isActive ? '활성화됨' : '비활성화됨';
-                status.className = isActive ? 'text-[9px] text-emerald-400 font-medium' : 'text-[9px] text-slate-500';
+                showToast(isActive ? '프리셋을 활성화했습니다.' : '프리셋을 비활성화했습니다.');
                 fetchStats();
             } catch (e) {
-                console.error('토글 에러:', e);
-                toggle.checked = !toggle.checked; // 원래대로 되돌림
-                showToast('활성화 상태 변경에 실패했습니다.', 'error');
+                showToast('상태 변경 실패: ' + e.message, 'error');
+                fetchPresets();
             }
+        }
+
+        async function updatePresetInterval(id, minutes) {
+            const interval = parseInt(minutes);
+            if (!interval || interval < 1) return;
+            try {
+                await HAD.fetchJson(`/api/v1/presets/${id}`, {
+                    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ interval_min: interval })
+                });
+                showToast(`실행 주기를 ${interval}분으로 변경했습니다.`);
+            } catch (e) {
+                showToast('주기 변경 실패: ' + e.message, 'error');
+            }
+        }
+
+        function updatePresetFields(sourceType) {
+            const urlField = document.querySelector('#preset-form input[name="target_url"]');
+            const actionField = document.querySelector('#preset-form input[name="action_type"]');
+            const urlMap = {
+                hotdeal: 'https://hotdeal.zip/api/deals.php',
+                todayhumor_tip: 'https://m.todayhumor.co.kr/',
+                todayhumor_good: 'https://m.todayhumor.co.kr/',
+                todayhumor_fun: 'https://m.todayhumor.co.kr/'
+            };
+            urlField.value = urlMap[sourceType] || '';
+            actionField.value = sourceType === 'hotdeal' ? 'HOTDEAL' : 'TODAYHUMOR';
         }
 
         async function fetchTargets() {
             try {
                 const data = await HAD.fetchJson('/api/v1/targets');
-                document.getElementById('target-list').innerHTML = data.items.map(t => `
+                document.getElementById('target-list').innerHTML = data.items.map(t => {
+                    let categories = [];
+                    try { categories = JSON.parse(t.categories || '[]'); } catch {}
+                    const catLabels = { product: '상품홍보', good: '좋은글', fun: '유머글', tip: '꿀팁글' };
+                    const catBadges = categories.map(c => `<span class="text-[8px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-300">${catLabels[c] || c}</span>`).join(' ');
+                    return `
                 <div class="bg-purple-900/10 p-4 rounded-xl border border-purple-500/20 relative">
                     <div class="flex justify-between items-start mb-2">
                         <h4 class="text-sm font-bold text-slate-200">${t.name}</h4>
-                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-bold">CAFE</span>
+                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-bold">${t.activity_type || 'CAFE'}</span>
                     </div>
-                    <p class="text-[10px] text-purple-400/70 mb-3">제한: ${t.daily_limit}회</p>
+                    <p class="text-[10px] text-purple-400/70 mb-2">제한: ${t.daily_limit}회/일</p>
+                    ${catBadges ? `<div class="flex flex-wrap gap-1 mb-2">${catBadges}</div>` : ''}
                     <div class="flex justify-end">
-                        <button onclick="deleteTarget(${t.id}, '${t.name.replace(/'/g, "\\'")}')" class="text-[10px] px-2 py-1 rounded bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 transition font-medium">
-                            삭제
-                        </button>
+                        <button onclick="deleteTarget(${t.id}, '${t.name.replace(/'/g, "\\'")}')" class="text-[10px] px-2 py-1 rounded bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 transition font-medium">삭제</button>
                     </div>
-                </div>
-                `).join('');
+                </div>`;
+                }).join('');
             } catch (e) {
                 console.error('Targets error:', e);
                 document.getElementById('target-list').innerHTML = '<div class="text-sm text-rose-400">카페 활동을 불러오지 못했습니다.</div>';
@@ -627,11 +674,26 @@
         }
 
         document.getElementById('target-form').onsubmit = async (e) => {
-            e.preventDefault(); const data = Object.fromEntries(new FormData(e.target));
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                name: formData.get('name'),
+                target_url: formData.get('target_url'),
+                activity_type: formData.get('activity_type'),
+                daily_limit: parseInt(formData.get('daily_limit')) || 3,
+            };
+            // 카테고리 복수 선택 처리
+            const categories = [];
+            if (formData.get('cat_product')) categories.push('product');
+            if (formData.get('cat_good')) categories.push('good');
+            if (formData.get('cat_fun')) categories.push('fun');
+            if (formData.get('cat_tip')) categories.push('tip');
+            data.categories = JSON.stringify(categories);
             try {
                 await HAD.fetchJson('/api/v1/targets', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
                 toggleModal('target-modal');
                 showToast('카페 활동을 등록했습니다.');
+                e.target.reset();
                 refresh();
             } catch (e) {
                 showToast('카페 활동 등록 실패: ' + e.message, 'error');
@@ -641,19 +703,102 @@
         document.getElementById('preset-form').onsubmit = async (e) => {
             e.preventDefault(); const formData = new FormData(e.target); const data = Object.fromEntries(formData.entries());
             data.needs_confirmation = formData.get('needs_confirmation') ? 1 : 0;
+            data.interval_min = parseInt(data.interval_min) || 60;
             try {
                 await HAD.fetchJson('/api/v1/presets', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
                 toggleModal('preset-modal');
                 showToast('프리셋을 생성했습니다.');
+                e.target.reset();
                 refresh();
             } catch (e) {
                 showToast('프리셋 생성 실패: ' + e.message, 'error');
             }
         };
 
-        function refresh() { fetchStats(); fetchBCStats(); fetchHotdealPreset(); fetchTargets(); fetchJobs(); fetchLogs(); fetchNaverDealsKeepPages(); }
+        function refresh() { fetchStats(); fetchBCStats(); fetchPresets(); fetchTargets(); fetchJobs(); fetchLogs(); fetchNaverDealsKeepPages(); fetchArticleSources(); }
         refresh();
         setInterval(refresh, 15000);
+
+        // === 탭 전환 ===
+        function switchSourceTab(tab) {
+            document.getElementById('source-tab-deals').classList.toggle('hidden', tab !== 'deals');
+            document.getElementById('source-tab-articles').classList.toggle('hidden', tab !== 'articles');
+            document.getElementById('tab-deals').className = `px-4 py-2 rounded-lg text-sm font-bold transition ${tab === 'deals' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`;
+            document.getElementById('tab-articles').className = `px-4 py-2 rounded-lg text-sm font-bold transition ${tab === 'articles' ? 'bg-cyan-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`;
+        }
+
+        // === 글 소스 관련 ===
+        let currentArticleFilter = '';
+
+        async function fetchArticleSources() {
+            try {
+                const params = { page_size: 50 };
+                if (currentArticleFilter) params.category = currentArticleFilter;
+                const data = await HAD.fetchSources(params);
+                renderArticleSources(data.items);
+            } catch (e) {
+                console.error('Article sources error:', e);
+                document.getElementById('article-source-list').innerHTML = '<div class="text-sm text-rose-400 text-center py-8 col-span-2">글 소스를 불러오지 못했습니다.</div>';
+            }
+        }
+
+        function renderArticleSources(items) {
+            const container = document.getElementById('article-source-list');
+            if (items.length === 0) {
+                container.innerHTML = '<div class="text-sm text-slate-500 text-center py-8 col-span-2">수집된 글 소스가 없습니다.</div>';
+                return;
+            }
+            const catColors = { tip: 'emerald', good: 'amber', fun: 'rose', product: 'sky' };
+            const catLabels = { tip: '꿀팁', good: '좋은글', fun: '유머글', product: '상품' };
+            container.innerHTML = items.map(s => {
+                const color = catColors[s.category] || 'slate';
+                const label = catLabels[s.category] || s.category || '미분류';
+                const preview = (s.content_text || s.title || '').substring(0, 100);
+                return `
+                <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 hover:border-${color}-500/30 transition cursor-pointer" onclick="previewSource(${s.id})">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-[9px] px-1.5 py-0.5 rounded bg-${color}-500/20 text-${color}-400 font-bold">${label}</span>
+                        <span class="text-[9px] text-slate-500">${s.used_count || 0}회 사용</span>
+                    </div>
+                    <h4 class="text-xs font-bold text-slate-200 mb-1 truncate">${s.title}</h4>
+                    <p class="text-[10px] text-slate-400 line-clamp-2">${preview}...</p>
+                </div>`;
+            }).join('');
+        }
+
+        function filterArticles(cat) {
+            currentArticleFilter = cat;
+            document.querySelectorAll('.article-filter-btn').forEach(btn => {
+                const isActive = btn.dataset.cat === cat;
+                btn.className = `article-filter-btn px-3 py-1 rounded-lg text-xs font-bold transition ${isActive ? 'bg-cyan-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`;
+            });
+            fetchArticleSources();
+        }
+
+        async function previewSource(id) {
+            try {
+                const data = await HAD.fetchSources({ page_size: 1 });
+                const source = data.items.find(s => s.id === id);
+                if (!source) return;
+                alert(`제목: ${source.title}\n\n${(source.content_text || '').substring(0, 500)}`);
+            } catch (e) {
+                showToast('소스 미리보기 실패: ' + e.message, 'error');
+            }
+        }
+
+        async function generateArticleFromDeals() {
+            const selectedIds = Array.from(document.querySelectorAll('.naver-deal-checkbox:checked')).map(cb => Number(cb.dataset.id)).filter(Number.isFinite);
+            if (selectedIds.length === 0) { alert('선택된 딜이 없습니다.'); return; }
+            // 타겟 선택 프롬프트
+            const targetId = prompt('글을 등록할 타겟 ID를 입력하세요:');
+            if (!targetId) return;
+            try {
+                const data = await HAD.generateArticle({ target_id: Number(targetId), category: 'product', source_ids: selectedIds });
+                showToast(data.message || '글 생성 요청 완료');
+            } catch (e) {
+                showToast('글 생성 실패: ' + e.message, 'error');
+            }
+        }
     </script>
 </body>
 </html>

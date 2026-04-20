@@ -251,11 +251,12 @@ async def create_preset(request: Request) -> JSONResponse:
     _require_fields(body, "name", "target_url", "action_type")
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO presets (name, target_url, action_type, interval_min, needs_confirmation, is_active) VALUES (?, ?, ?, ?, ?, 1)",
+            "INSERT INTO presets (name, target_url, action_type, source_type, interval_min, needs_confirmation, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)",
             (
                 body["name"],
                 body["target_url"],
                 body["action_type"],
+                body.get("source_type", "hotdeal"),
                 body.get("interval_min", 60),
                 int(body.get("needs_confirmation", 1)),
             ),
@@ -284,16 +285,45 @@ async def delete_preset(request: Request) -> JSONResponse:
 async def toggle_preset(request: Request) -> JSONResponse:
     preset_id = int(request.path_params["preset_id"])
     body = await _read_json(request)
-    is_active = body.get("is_active", 1)
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE presets SET is_active = ?, updated_at = datetime('now') WHERE id = ?",
-            (is_active, preset_id),
-        )
+        # 업데이트할 필드 동적 구성
+        updates = []
+        params = []
+        if "is_active" in body:
+            updates.append("is_active = ?")
+            params.append(body["is_active"])
+        if "interval_min" in body:
+            updates.append("interval_min = ?")
+            params.append(int(body["interval_min"]))
+        if not updates:
+            return _error_response("업데이트할 필드가 없습니다.")
+        updates.append("updated_at = datetime('now')")
+        params.append(preset_id)
+        sql = f"UPDATE presets SET {', '.join(updates)} WHERE id = ?"
+        conn.execute(sql, tuple(params))
         conn.commit()
-        row = conn.execute(
-            "SELECT * FROM presets WHERE id = ?", (preset_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM presets WHERE id = ?", (preset_id,)).fetchone()
+    return JSONResponse(_row_to_dict(row))
+
+
+async def update_preset(request: Request) -> JSONResponse:
+    """프리셋 부분 업데이트 (interval_min 등)"""
+    preset_id = int(request.path_params["preset_id"])
+    body = await _read_json(request)
+    with get_conn() as conn:
+        updates = []
+        params = []
+        for field in ["interval_min", "is_active", "needs_confirmation", "name", "source_type"]:
+            if field in body:
+                updates.append(f"{field} = ?")
+                params.append(body[field])
+        if not updates:
+            return _error_response("업데이트할 필드가 없습니다.")
+        updates.append("updated_at = datetime('now')")
+        params.append(preset_id)
+        conn.execute(f"UPDATE presets SET {', '.join(updates)} WHERE id = ?", tuple(params))
+        conn.commit()
+        row = conn.execute("SELECT * FROM presets WHERE id = ?", (preset_id,)).fetchone()
     return JSONResponse(_row_to_dict(row))
 
 
@@ -903,6 +933,217 @@ async def generate_links(request: Request) -> JSONResponse:
     )
 
 
+# --- Article Sources API (수집된 글 소스 관리) ---
+
+async def list_article_sources(request: Request) -> JSONResponse:
+    """수집된 글 소스 목록 조회"""
+    category = request.query_params.get("category")  # product, tip, good, fun
+    source_type = request.query_params.get("source_type")  # hotdeal, todayhumor_tip, etc.
+    page = _parse_positive_int(request.query_params.get("page"), 1, "page")
+    page_size = _parse_positive_int(request.query_params.get("page_size"), 20, "page_size")
+    offset = (page - 1) * page_size
+
+    with get_conn() as conn:
+        where_clauses = ["is_archived = 0"]
+        params = []
+
+        if category:
+            where_clauses.append("category = ?")
+            params.append(category)
+        if source_type:
+            where_clauses.append("source_type = ?")
+            params.append(source_type)
+
+        where_sql = " AND ".join(where_clauses)
+
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM article_sources WHERE {where_sql}", tuple(params)
+        ).fetchone()[0]
+
+        rows = conn.execute(
+            f"""SELECT * FROM article_sources WHERE {where_sql}
+            ORDER BY collected_at DESC LIMIT ? OFFSET ?""",
+            (*params, page_size, offset)
+        ).fetchall()
+
+    return JSONResponse({
+        "items": [_row_to_dict(r) for r in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    })
+
+
+async def create_article_source(request: Request) -> JSONResponse:
+    """새 글 소스 추가"""
+    body = await _read_json(request)
+    _require_fields(body, "source_type", "title")
+
+    with get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO article_sources
+            (source_type, title, content_text, content_html, source_url, thumbnail_url, category, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                body["source_type"],
+                body["title"],
+                body.get("content_text"),
+                body.get("content_html"),
+                body.get("source_url"),
+                body.get("thumbnail_url"),
+                body.get("category", "tip"),
+                json.dumps(body.get("metadata", {}), ensure_ascii=False) if body.get("metadata") else None,
+            ),
+        )
+        row = conn.execute(
+            "SELECT * FROM article_sources WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+        conn.commit()
+
+    return JSONResponse(_row_to_dict(row), status_code=201)
+
+
+async def delete_article_source(request: Request) -> JSONResponse:
+    """글 소스 아카이브 (soft delete)"""
+    source_id = int(request.path_params["source_id"])
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE article_sources SET is_archived = 1 WHERE id = ?",
+            (source_id,),
+        )
+        conn.commit()
+    return JSONResponse({"ok": True, "message": f"소스 {source_id} 아카이브됨"})
+
+
+# --- Article Queue API (자동글 작성 큐 관리) ---
+
+async def list_article_queue(request: Request) -> JSONResponse:
+    """자동글 작성 큐 조회"""
+    status = request.query_params.get("status", "PENDING")
+    category = request.query_params.get("category")
+
+    with get_conn() as conn:
+        where_clauses = ["aq.status = ?"]
+        params = [status]
+
+        if category:
+            where_clauses.append("aq.category = ?")
+            params.append(category)
+
+        where_sql = " AND ".join(where_clauses)
+
+        rows = conn.execute(
+            f"""SELECT aq.*, t.name as target_name, p.name as preset_name
+            FROM article_queue aq
+            LEFT JOIN targets t ON aq.target_id = t.id
+            LEFT JOIN presets p ON aq.preset_id = p.id
+            WHERE {where_sql}
+            ORDER BY aq.created_at ASC""",
+            tuple(params)
+        ).fetchall()
+
+    return JSONResponse({"items": [_row_to_dict(r) for r in rows]})
+
+
+async def approve_article(request: Request) -> JSONResponse:
+    """자동글 승인"""
+    article_id = int(request.path_params["article_id"])
+    body = await _read_json(request)
+
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE article_queue
+            SET status = 'APPROVED', content = ?, updated_at = datetime('now'), approved_at = datetime('now')
+            WHERE id = ?""",
+            (body.get("content"), article_id),
+        )
+        conn.commit()
+
+    return JSONResponse({"ok": True})
+
+
+async def reject_article(request: Request) -> JSONResponse:
+    """자동글 거부"""
+    article_id = int(request.path_params["article_id"])
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE article_queue
+            SET status = 'REJECTED', updated_at = datetime('now')
+            WHERE id = ?""",
+            (article_id,),
+        )
+        conn.commit()
+    return JSONResponse({"ok": True})
+
+
+async def generate_article(request: Request) -> JSONResponse:
+    """소스 기반 자동글 생성 요청"""
+    body = await _read_json(request)
+    _require_fields(body, "target_id", "category", "source_ids")
+
+    target_id = body["target_id"]
+    category = body["category"]
+    source_ids = body["source_ids"]  # JSON 배열
+
+    if not isinstance(source_ids, list) or not source_ids:
+        return _error_response("source_ids는 비어있지 않은 배열이어야 합니다.")
+
+    with get_conn() as conn:
+        # 타겟 확인
+        target = conn.execute(
+            "SELECT * FROM targets WHERE id = ?", (target_id,)
+        ).fetchone()
+        if not target:
+            return _error_response("존재하지 않는 타겟입니다.", 404)
+
+        # 소스 조회
+        placeholders = ",".join("?" * len(source_ids))
+        sources = conn.execute(
+            f"SELECT * FROM article_sources WHERE id IN ({placeholders})",
+            tuple(source_ids)
+        ).fetchall()
+
+        if not sources:
+            return _error_response("선택된 소스가 없습니다.")
+
+        # 소스 내용 결합
+        source_contents = []
+        for s in sources:
+            content = s["content_text"] or s["title"]
+            source_contents.append(f"[{s['source_type']}] {content}")
+
+        combined_content = "\n\n---\n\n".join(source_contents)
+
+        # 큐에 추가 (LLM 생성은 별도 처리)
+        cur = conn.execute(
+            """INSERT INTO article_queue (target_id, category, title, content, source_ids, status)
+            VALUES (?, ?, ?, ?, ?, 'PENDING')""",
+            (
+                target_id,
+                category,
+                f"{target['name']} - {category} 글",
+                combined_content,
+                json.dumps(source_ids),
+            ),
+        )
+
+        # 소스 사용 횟수 증가
+        for sid in source_ids:
+            conn.execute(
+                "UPDATE article_sources SET used_count = used_count + 1 WHERE id = ?",
+                (sid,),
+            )
+
+        conn.commit()
+
+    return JSONResponse({
+        "ok": True,
+        "message": f"{len(sources)}개 소스로 글 생성 큐에 추가됨",
+        "queue_id": cur.lastrowid,
+    }, status_code=201)
+
+
 # --- 라우팅 ---
 routes = [
     Route("/", serve_index),
@@ -914,6 +1155,7 @@ routes = [
     Route("/api/v1/presets", list_presets, methods=["GET"]),
     Route("/api/v1/presets", create_preset, methods=["POST"]),
     Route("/api/v1/presets/{preset_id:int}", delete_preset, methods=["DELETE"]),
+    Route("/api/v1/presets/{preset_id:int}", update_preset, methods=["PATCH"]),
     Route("/api/v1/presets/{preset_id:int}/toggle", toggle_preset, methods=["PATCH"]),
     Route("/api/v1/targets", list_targets, methods=["GET"]),
     Route("/api/v1/targets", create_target, methods=["POST"]),
@@ -933,6 +1175,15 @@ routes = [
     ),
     Route("/api/v1/naver/deals", list_naver_deals, methods=["GET"]),
     Route("/api/v1/naver/generate-links", generate_links, methods=["POST"]),
+    # Article Sources API
+    Route("/api/v1/sources", list_article_sources, methods=["GET"]),
+    Route("/api/v1/sources", create_article_source, methods=["POST"]),
+    Route("/api/v1/sources/{source_id:int}", delete_article_source, methods=["DELETE"]),
+    # Article Queue API
+    Route("/api/v1/article-queue", list_article_queue, methods=["GET"]),
+    Route("/api/v1/article-queue/{article_id:int}/approve", approve_article, methods=["POST"]),
+    Route("/api/v1/article-queue/{article_id:int}/reject", reject_article, methods=["POST"]),
+    Route("/api/v1/article-queue/generate", generate_article, methods=["POST"]),
 ]
 
 app = Starlette(
