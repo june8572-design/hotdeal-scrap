@@ -386,9 +386,18 @@ async def approve_job(request: Request) -> JSONResponse:
     job_id = int(request.path_params["job_id"])
     body = await _read_json(request)
     with get_conn() as conn:
+        updates = ["status = 'APPROVED'", "updated_at = datetime('now')"]
+        params = []
+        if body.get("content"):
+            updates.append("content = ?")
+            params.append(body["content"])
+        if body.get("target_id"):
+            updates.append("target_id = ?")
+            params.append(body["target_id"])
+        params.append(job_id)
         conn.execute(
-            "UPDATE jobs SET status = 'APPROVED', content = ?, updated_at = datetime('now') WHERE id = ?",
-            (body.get("content"), job_id),
+            f"UPDATE jobs SET {', '.join(updates)} WHERE id = ?",
+            tuple(params),
         )
         conn.commit()
     return JSONResponse({"ok": True})

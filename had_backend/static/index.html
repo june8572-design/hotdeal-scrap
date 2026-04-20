@@ -257,14 +257,14 @@
                     naverDealsLoaded.length >= naverDealsTotal ? 'none' : 'inline-block';
             } catch (e) {
                 console.error('Naver deals error:', e);
-                document.getElementById('naver-deal-list').innerHTML = '<tr><td colspan="12" class="py-8 text-center text-rose-400">딜 목록을 불러오지 못했습니다.</td></tr>';
+                document.getElementById('naver-deal-list').innerHTML = '<tr><td colspan="6" class="py-8 text-center text-rose-400">딜 목록을 불러오지 못했습니다.</td></tr>';
             }
         }
 
         function renderNaverDeals() {
             const container = document.getElementById('naver-deal-list');
             if (naverDealsLoaded.length === 0) {
-                container.innerHTML = '<tr><td colspan="12" class="py-8 text-center text-slate-500">데이터가 없습니다.</td></tr>';
+                container.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-500">데이터가 없습니다.</td></tr>';
                 return;
             }
             container.innerHTML = naverDealsLoaded.map(d => {
@@ -273,7 +273,7 @@
                                   d.brand_connector_status === 'failed' ? 'text-rose-400' : 
                                   'text-yellow-400';
                 const statusText = d.brand_connector_status === 'success' ? '성공' : 
-                                  d.brand_connector_status === 'failed' ? '실패' : '처리중';
+                                  d.brand_connector_status === 'failed' ? '실패' : '대기';
                 
                 let affiliateBadge = '-';
                 let affiliateClass = 'text-slate-500';
@@ -284,42 +284,18 @@
                     affiliateBadge = '비제휴';
                     affiliateClass = 'text-rose-400';
                 }
-                
-                const discountRate = d.discount_rate ? `-${d.discount_rate}%` : '-';
-                const commission = d.commission ? `${d.commission}%` : '-';
-                const affiliateType = d.affiliate_url_type || '-';
-                const canonicalName = d.canonical_product_name || '-';
-                
-                const retryCount = d.brand_connector_retry_count || 0;
-                const errorTooltip = d.brand_connector_error ? `title="${d.brand_connector_error}"` : '';
-                
-                let statusCell = `<span ${errorTooltip} class="${statusClass} text-xs font-medium cursor-help">${statusText}</span>`;
-                if (d.brand_connector_status === 'failed') {
-                    statusCell += ` <button onclick="retryDeal(${d.id})" class="ml-1 text-[10px] text-sky-400 hover:text-sky-300 underline">재시도</button>`;
-                    if (retryCount > 0) statusCell += `<span class="text-[10px] text-slate-500 ml-1">(${retryCount}회)</span>`;
-                }
-                
-                const linkCell = d.brand_connector_link 
-                    ? `<a href="${d.brand_connector_link}" target="_blank" class="text-sky-400 hover:underline truncate block max-w-[120px]">${d.brand_connector_link}</a>`
-                    : '-';
 
                 return `
                     <tr class="hover:bg-slate-800/30 transition text-slate-300 ${isChecked ? 'bg-sky-500/10' : ''}">
-                        <td class="py-3 px-4">
+                        <td class="py-2 px-3">
                             <input type="checkbox" class="naver-deal-checkbox w-4 h-4 rounded border-slate-600 bg-slate-800 text-sky-500" 
                                 data-id="${d.id}" ${isChecked ? 'checked' : ''} onchange="toggleNaverDeal(${d.id})">
                         </td>
-                        <td class="py-3 px-4 text-xs text-slate-500">${d.id}</td>
-                        <td class="py-3 px-4"><span class="bg-slate-800 px-2 py-0.5 rounded-full text-[10px] text-slate-400">${d.site}</span></td>
-                        <td class="py-3 px-4 font-medium truncate max-w-xs" title="${d.title}">${d.title}</td>
-                        <td class="py-3 px-4 text-emerald-400 font-bold text-xs">${d.price}</td>
-                        <td class="py-3 px-4 ${affiliateClass} text-xs font-medium">${affiliateBadge}</td>
-                        <td class="py-3 px-4 text-slate-400 text-xs">${affiliateType}</td>
-                        <td class="py-3 px-4 text-slate-300 text-xs truncate max-w-[220px]" title="${canonicalName}">${canonicalName}</td>
-                        <td class="py-3 px-4 text-rose-400 text-xs font-bold">${discountRate}</td>
-                        <td class="py-3 px-4 text-sky-400 text-xs font-medium">${commission}</td>
-                        <td class="py-3 px-4">${statusCell}</td>
-                        <td class="py-3 px-4 text-xs">${linkCell}</td>
+                        <td class="py-2 px-3 text-xs text-slate-500">${d.id}</td>
+                        <td class="py-2 px-3 font-medium truncate max-w-xs" title="${d.title}">${d.title}</td>
+                        <td class="py-2 px-3 text-emerald-400 font-bold text-xs">${d.price || '-'}</td>
+                        <td class="py-2 px-3 ${affiliateClass} text-xs font-medium">${affiliateBadge}</td>
+                        <td class="py-2 px-3"><span class="${statusClass} text-xs font-medium">${statusText}</span></td>
                     </tr>
                 `;
             }).join('');
@@ -562,12 +538,37 @@
             try {
                 const data = await HAD.fetchJson('/api/v1/jobs?status=PENDING');
                 if (data.items.length === 0) { container.innerHTML = '<div class="text-center py-10 text-slate-600 text-sm italic border border-dashed border-slate-800 rounded-2xl">대기 중인 작업이 없습니다.</div>'; return; }
-                container.innerHTML = data.items.map(j => `
-                <div class="glass p-5 rounded-2xl border-l-4 ${j.job_type === 'HOTDEAL' ? 'border-sky-500 bg-sky-500/5' : 'border-purple-500 bg-purple-500/5'}">
+                
+                // 타겟 목록 로드 (선택용)
+                let targets = [];
+                try { const td = await HAD.fetchJson('/api/v1/targets'); targets = td.items; } catch {}
+                
+                container.innerHTML = data.items.map(j => {
+                    const targetInfo = j.target_name ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">${j.target_name}</span>` : '';
+                    const presetInfo = j.preset_name ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400">${j.preset_name}</span>` : '';
+                    const categoryBadge = j.category ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">${j.category}</span>` : '';
+                    
+                    // 타겟 선택 드롭다운 (target_id가 없는 경우)
+                    const targetSelect = !j.target_id && targets.length > 0 ? `
+                        <div class="mb-3">
+                            <label class="text-[10px] text-slate-400 mb-1 block">게시판 선택</label>
+                            <select id="job-target-${j.id}" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs">
+                                <option value="">-- 게시판 선택 --</option>
+                                ${targets.map(t => `<option value="${t.id}">${t.name} (${t.target_url.substring(0,30)}...)</option>`).join('')}
+                            </select>
+                        </div>
+                    ` : '';
+                    
+                    return `
+                <div class="glass p-5 rounded-2xl border-l-4 ${j.job_type === 'HOTDEAL' ? 'border-sky-500 bg-sky-500/5' : j.job_type === 'TODAYHUMOR' ? 'border-cyan-500 bg-cyan-500/5' : 'border-purple-500 bg-purple-500/5'}">
                     <div class="flex justify-between items-start mb-3">
-                        <h4 class="font-bold text-slate-100 text-sm">${j.post_title || '제목 없음'}</h4>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-sm">${j.post_title || '제목 없음'}</h4>
+                            <div class="flex gap-1 mt-1">${presetInfo}${targetInfo}${categoryBadge}</div>
+                        </div>
                         <span class="text-[10px] text-slate-500">${new Date(j.created_at).toLocaleTimeString()}</span>
                     </div>
+                    ${targetSelect}
                     <textarea id="job-content-${j.id}" class="w-full bg-slate-900/80 border border-slate-700 rounded-xl p-3 text-xs text-slate-200 h-20 mb-3 outline-none focus:ring-1 focus:ring-sky-500">${j.content || ''}</textarea>
                     <div class="flex gap-2">
                         <button onclick="approveJob(${j.id})" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-xl text-xs font-bold transition">
@@ -577,8 +578,8 @@
                             거부
                         </button>
                     </div>
-                </div>
-                `).join('');
+                </div>`;
+                }).join('');
             } catch (e) {
                 console.error('Jobs error:', e);
                 container.innerHTML = '<div class="text-center py-10 text-rose-400 text-sm border border-dashed border-rose-900 rounded-2xl">작업 대기열을 불러오지 못했습니다.</div>';
@@ -619,8 +620,12 @@
 
         async function approveJob(id) {
             const content = document.getElementById(`job-content-${id}`).value;
+            const targetSelect = document.getElementById(`job-target-${id}`);
+            const targetId = targetSelect ? targetSelect.value : null;
             try {
-                await HAD.fetchJson(`/api/v1/jobs/${id}/approve`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({content}) });
+                const body = { content };
+                if (targetId) body.target_id = parseInt(targetId);
+                await HAD.fetchJson(`/api/v1/jobs/${id}/approve`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
                 showToast('작업을 승인했습니다.');
                 refresh();
             } catch (e) {
