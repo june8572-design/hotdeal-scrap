@@ -157,6 +157,7 @@
                     <label class="flex items-center gap-2 cursor-pointer select-none">
                         <input type="checkbox" id="select-all-naver" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500" onchange="toggleSelectAllNaver()">
                         <span class="text-sm text-slate-300 font-medium">전체선택</span>
+                        <span id="naver-deals-count" class="text-xs text-slate-500 ml-2">전체 0개</span>
                     </label>
                     <div class="flex gap-2">
                         <button onclick="generateArticleFromDeals()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 font-bold text-xs">
@@ -190,12 +191,17 @@
             </div>
             <!-- 글 소스 탭 -->
             <div id="source-tab-articles" class="hidden">
-                <div class="flex gap-2 mb-4">
-                    <button onclick="filterArticles('')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-cyan-600 text-white" data-cat="">전체</button>
-                    <button onclick="filterArticles('tip')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="tip">꿀팁</button>
-                    <button onclick="filterArticles('good')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="good">좋은글</button>
-                    <button onclick="filterArticles('fun')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="fun">유머글</button>
-                    <button onclick="filterArticles('product')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="product">상품</button>
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex gap-2">
+                        <button onclick="filterArticles('')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-cyan-600 text-white" data-cat="">전체</button>
+                        <button onclick="filterArticles('tip')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="tip">꿀팁</button>
+                        <button onclick="filterArticles('good')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="good">좋은글</button>
+                        <button onclick="filterArticles('fun')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="fun">유머글</button>
+                        <button onclick="filterArticles('product')" class="article-filter-btn px-3 py-1 rounded-lg text-xs font-bold bg-slate-700 text-slate-300" data-cat="product">상품</button>
+                    </div>
+                    <button onclick="generateArticleFromSources()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 font-bold text-xs">
+                        <i data-lucide="file-text" class="w-3 h-3"></i> 글 생성
+                    </button>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2" id="article-source-list">
                     <div class="text-sm text-slate-500 text-center py-8 col-span-2">로딩 중...</div>
@@ -211,6 +217,23 @@
     <div id="guide-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[100]"><div class="glass p-8 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto text-slate-300 text-sm"><h2 class="text-2xl font-bold text-sky-400 flex items-center gap-2 mb-6 border-b border-slate-700 pb-4"><i data-lucide="book-open" class="w-6 h-6"></i> HAD 사용 가이드</h2><div class="space-y-6 leading-relaxed"><p>1. <b>핫딜 수집</b>: 설정한 주기마다 새로운 딜을 찾아 AI 홍보글을 생성합니다.</p><p>2. <b>카페 활동</b>: 등록된 카페 게시판의 최신글을 스캔하여 댓글 대기열을 만듭니다.</p><p>3. <b>승인 대기열</b>: 모든 작업은 실제 실행 전 여기서 확인 및 수정이 가능합니다.</p></div><button onclick="toggleModal('guide-modal')" class="w-full mt-8 bg-sky-600 hover:bg-sky-500 text-white py-3 rounded-xl font-bold transition">닫기</button></div></div>
     <div id="preset-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"><div class="glass p-8 rounded-2xl w-full max-w-md"><h2 class="text-xl font-bold mb-6 text-sky-400">신규 수집 프리셋 추가</h2><form id="preset-form" class="space-y-4"><input type="text" name="name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" placeholder="프리셋 이름" required><div><label class="text-xs text-slate-400 mb-1 block">소스 타입</label><select name="source_type" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" onchange="updatePresetFields(this.value)"><option value="hotdeal">핫딜 (hotdeal.zip)</option><option value="todayhumor_tip">오늘의유머 꿀팁</option><option value="todayhumor_good">오늘의유머 좋은글</option><option value="todayhumor_fun">오늘의유머 유머글</option></select></div><input type="text" name="target_url" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" value="https://hotdeal.zip/api/deals.php" required><div class="grid grid-cols-2 gap-4"><div><label class="text-xs text-slate-400 mb-1 block">실행 주기 (분)</label><input type="number" name="interval_min" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" value="60" min="1"></div><div class="flex items-center gap-2 pt-5"><input type="checkbox" name="needs_confirmation" id="chk-conf" checked><label for="chk-conf" class="text-sm">실행 전 승인</label></div></div><input type="hidden" name="action_type" value="HOTDEAL"><div class="flex gap-3 mt-8"><button type="button" onclick="toggleModal('preset-modal')" class="flex-1 px-4 py-3 rounded-xl bg-slate-700 font-bold">취소</button><button type="submit" class="flex-1 px-4 py-3 rounded-xl bg-sky-600 font-bold">생성</button></div></form></div></div>
     <div id="target-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"><div class="glass p-8 rounded-2xl w-full max-w-md"><h2 class="text-xl font-bold mb-6 text-purple-400">신규 카페 활동 추가</h2><form id="target-form" class="space-y-4"><input type="text" name="name" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" placeholder="활동 이름" required><input type="text" name="target_url" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" placeholder="카페 메뉴 URL" required><div><label class="text-xs text-slate-400 mb-2 block">작성 카테고리 (복수 선택 가능)</label><div class="grid grid-cols-2 gap-2"><label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg cursor-pointer hover:bg-slate-700"><input type="checkbox" name="cat_product" value="product" class="target-category w-4 h-4 rounded border-slate-600 text-purple-500"><span class="text-sm">상품홍보</span></label><label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg cursor-pointer hover:bg-slate-700"><input type="checkbox" name="cat_good" value="good" class="target-category w-4 h-4 rounded border-slate-600 text-purple-500"><span class="text-sm">좋은글</span></label><label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg cursor-pointer hover:bg-slate-700"><input type="checkbox" name="cat_fun" value="fun" class="target-category w-4 h-4 rounded border-slate-600 text-purple-500"><span class="text-sm">유머글</span></label><label class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg cursor-pointer hover:bg-slate-700"><input type="checkbox" name="cat_tip" value="tip" class="target-category w-4 h-4 rounded border-slate-600 text-purple-500"><span class="text-sm">꿀팁글</span></label></div></div><div class="grid grid-cols-2 gap-4"><select name="activity_type" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm"><option value="POST">글 작성</option><option value="COMMENT">댓글 작성</option></select><input type="number" name="daily_limit" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm" value="3" min="1"></div><div class="flex gap-3 mt-8"><button type="button" onclick="toggleModal('target-modal')" class="flex-1 px-4 py-3 rounded-xl bg-slate-700 font-bold">취소</button><button type="submit" class="flex-1 px-4 py-3 rounded-xl bg-purple-600 font-bold">등록</button></div></form></div></div>
+    <!-- 타겟 선택 모달 (글 생성용) -->
+    <div id="target-select-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="glass p-8 rounded-2xl w-full max-w-lg">
+            <h2 class="text-xl font-bold mb-2 text-cyan-400 flex items-center gap-2">
+                <i data-lucide="map-pin" class="w-5 h-5"></i> 게시판 선택
+            </h2>
+            <p class="text-sm text-slate-400 mb-5">글을 작성할 카페/게시판을 선택하세요</p>
+            <div id="target-select-list" class="space-y-2 max-h-[400px] overflow-y-auto pr-1 mb-6">
+                <div class="text-sm text-slate-500 text-center py-6">로딩 중...</div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="toggleModal('target-select-modal')" class="flex-1 px-4 py-3 rounded-xl bg-slate-700 font-bold text-sm hover:bg-slate-600 transition">취소</button>
+                <button id="target-select-confirm-btn" onclick="confirmTargetSelection()" disabled class="flex-1 px-4 py-3 rounded-xl bg-cyan-600 font-bold text-sm hover:bg-cyan-500 transition disabled:opacity-40 disabled:cursor-not-allowed">선택 완료</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="fixed bottom-6 right-6 glass px-4 py-3 rounded-xl hidden z-[110] text-sm font-medium"></div>
 
     <script src="/static/shared.js"></script>
@@ -760,6 +783,8 @@
             }
         }
 
+        let selectedArticleSources = new Set();
+
         function renderArticleSources(items) {
             const container = document.getElementById('article-source-list');
             if (items.length === 0) {
@@ -776,16 +801,50 @@
             container.innerHTML = items.map(s => {
                 const style = catStyles[s.category] || { badge: 'bg-slate-500/20 text-slate-400', border: 'border-slate-500/30', label: s.category || '미분류' };
                 const preview = (s.content_text || s.title || '').substring(0, 80);
+                const isChecked = selectedArticleSources.has(s.id);
                 return `
-                <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 hover:${style.border} transition cursor-pointer" onclick="previewSource(${s.id})">
+                <div class="bg-slate-800/50 p-3 rounded-xl border ${isChecked ? 'border-cyan-500/40 bg-cyan-500/5' : 'border-slate-700/50'} hover:${style.border} transition">
                     <div class="flex justify-between items-start mb-1">
-                        <span class="text-[9px] px-1.5 py-0.5 rounded ${style.badge} font-bold">${style.label}</span>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" class="article-source-checkbox w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-cyan-500" data-id="${s.id}" ${isChecked ? 'checked' : ''} onchange="toggleArticleSource(${s.id})">
+                            <span class="text-[9px] px-1.5 py-0.5 rounded ${style.badge} font-bold">${style.label}</span>
+                        </div>
                         <span class="text-[9px] text-slate-500">${s.used_count || 0}회 사용</span>
                     </div>
-                    <h4 class="text-xs font-bold text-slate-200 mb-1 truncate">${s.title}</h4>
-                    <p class="text-[10px] text-slate-400">${preview}...</p>
+                    <h4 class="text-xs font-bold text-slate-200 mb-1 truncate ml-6">${s.title}</h4>
+                    <p class="text-[10px] text-slate-400 ml-6">${preview}...</p>
                 </div>`;
             }).join('');
+        }
+
+        function toggleArticleSource(id) {
+            if (selectedArticleSources.has(id)) {
+                selectedArticleSources.delete(id);
+            } else {
+                selectedArticleSources.add(id);
+            }
+            // Update card styles
+            document.querySelectorAll('.article-source-checkbox').forEach(cb => {
+                const card = cb.closest('.bg-slate-800\\/50');
+                if (card) {
+                    const isChecked = cb.checked;
+                    card.classList.toggle('border-cyan-500/40', isChecked);
+                    card.classList.toggle('bg-cyan-500/5', isChecked);
+                    card.classList.toggle('border-slate-700/50', !isChecked);
+                }
+            });
+        }
+
+        let pendingSourceCategory = '';
+
+        async function generateArticleFromSources() {
+            const selectedIds = Array.from(selectedArticleSources);
+            if (selectedIds.length === 0) { alert('선택된 글 소스가 없습니다.'); return; }
+            // Determine category from first selected source
+            const firstCheckbox = document.querySelector(`.article-source-checkbox[data-id="${selectedIds[0]}"]`);
+            const card = firstCheckbox?.closest('.bg-slate-800\\/50, .bg-slate-800\\\\/50');
+            pendingSourceCategory = currentArticleFilter || 'tip';
+            await openTargetSelectModal(selectedIds, 'articles');
         }
 
         function filterArticles(cat) {
@@ -808,18 +867,91 @@
             }
         }
 
+        // ── 타겟 선택 모달 ──
+        let pendingSourceIds = [];
+        let pendingSourceMode = ''; // 'deals' | 'articles'
+
+        async function openTargetSelectModal(sourceIds, mode) {
+            pendingSourceIds = sourceIds;
+            pendingSourceMode = mode;
+            const listEl = document.getElementById('target-select-list');
+            const confirmBtn = document.getElementById('target-select-confirm-btn');
+            listEl.innerHTML = '<div class="text-sm text-slate-500 text-center py-6">로딩 중...</div>';
+            confirmBtn.disabled = true;
+            toggleModal('target-select-modal');
+
+            try {
+                const data = await HAD.fetchTargets();
+                const targets = Array.isArray(data) ? data : (data.targets || data.items || []);
+                if (targets.length === 0) {
+                    listEl.innerHTML = `
+                        <div class="text-center py-8">
+                            <p class="text-slate-400 mb-3">등록된 게시판이 없습니다.</p>
+                            <button onclick="toggleModal('target-select-modal'); toggleModal('target-modal')" 
+                                class="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-bold transition">
+                                + 카페 활동 추가
+                            </button>
+                        </div>`;
+                    return;
+                }
+                const categoryLabels = { product: '상품홍보', good: '좋은글', fun: '유머글', tip: '꿀팁글' };
+                listEl.innerHTML = targets.map(t => {
+                    let cats = [];
+                    try { cats = JSON.parse(t.categories || '[]'); } catch {}
+                    const catBadges = cats.map(c =>  
+                        `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${c === 'product' ? 'bg-sky-500/20 text-sky-300' : c === 'good' ? 'bg-emerald-500/20 text-emerald-300' : c === 'fun' ? 'bg-pink-500/20 text-pink-300' : 'bg-yellow-500/20 text-yellow-300'}">${categoryLabels[c] || c}</span>`
+                    ).join(' ');
+                    return `
+                        <label class="target-select-item flex items-start gap-3 p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 cursor-pointer hover:border-cyan-500/40 transition" data-id="${t.id}">
+                            <input type="radio" name="target-select" value="${t.id}" class="mt-1 w-4 h-4 text-cyan-500 border-slate-600 bg-slate-800" onchange="onTargetRadioChange(this)">
+                            <div class="flex-1 min-w-0">
+                                <div class="font-bold text-sm text-slate-200">${t.name}</div>
+                                <div class="text-xs text-slate-500 truncate mt-0.5">${t.target_url}</div>
+                                ${catBadges ? `<div class="flex gap-1 mt-1.5">${catBadges}</div>` : ''}
+                            </div>
+                        </label>`;
+                }).join('');
+            } catch (e) {
+                listEl.innerHTML = `<div class="text-sm text-rose-400 text-center py-6">타겟 목록 로드 실패: ${e.message}</div>`;
+            }
+        }
+
+        function onTargetRadioChange(radio) {
+            document.getElementById('target-select-confirm-btn').disabled = false;
+            document.querySelectorAll('.target-select-item').forEach(el => {
+                el.classList.toggle('border-cyan-500/60', el.querySelector('input').checked);
+                el.classList.toggle('bg-cyan-500/5', el.querySelector('input').checked);
+            });
+        }
+
+        async function confirmTargetSelection() {
+            const radio = document.querySelector('input[name="target-select"]:checked');
+            if (!radio) return;
+            const targetId = Number(radio.value);
+            toggleModal('target-select-modal');
+
+            if (pendingSourceMode === 'deals') {
+                try {
+                    const data = await HAD.generateArticle({ target_id: targetId, category: 'product', source_ids: pendingSourceIds });
+                    showToast(data.message || '글 생성 요청 완료');
+                    fetchNaverDealsKeepPages();
+                } catch (e) {
+                    showToast('글 생성 실패: ' + e.message, 'error');
+                }
+            } else if (pendingSourceMode === 'articles') {
+                try {
+                    const data = await HAD.generateArticle({ target_id: targetId, category: pendingSourceCategory || 'tip', source_ids: pendingSourceIds });
+                    showToast(data.message || '글 생성 요청 완료');
+                } catch (e) {
+                    showToast('글 생성 실패: ' + e.message, 'error');
+                }
+            }
+        }
+
         async function generateArticleFromDeals() {
             const selectedIds = Array.from(document.querySelectorAll('.naver-deal-checkbox:checked')).map(cb => Number(cb.dataset.id)).filter(Number.isFinite);
             if (selectedIds.length === 0) { alert('선택된 딜이 없습니다.'); return; }
-            // 타겟 선택 프롬프트
-            const targetId = prompt('글을 등록할 타겟 ID를 입력하세요:');
-            if (!targetId) return;
-            try {
-                const data = await HAD.generateArticle({ target_id: Number(targetId), category: 'product', source_ids: selectedIds });
-                showToast(data.message || '글 생성 요청 완료');
-            } catch (e) {
-                showToast('글 생성 실패: ' + e.message, 'error');
-            }
+            await openTargetSelectModal(selectedIds, 'deals');
         }
     </script>
 </body>

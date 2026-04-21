@@ -402,16 +402,27 @@ python3 brandconnect_issue_links.py --deal-id 113178-113200
    - [x] `todayhumor_tip_scraper.py` 신규 생성 (검색 기반 단순화)
    - [x] `todayhumor_tips` DB 테이블 + 저장 테스트
 
-4. **홍보글 + 꿀팁 자동 게시 (다음 우선순위)**
+4. **✅ 대시보드 전면 개편 (완료 - 2026-04-21)**
+   - [x] 프리셋 UI 동적 렌더링 + 활성화 토글 + 실행주기 수정
+   - [x] 타겟(카페 게시판) 카테고리 복수 선택
+   - [x] 수집 소스 탭 UI (네이버 딜 + 글 소스)
+   - [x] 네이버 딜 선택 → 게시판 선택 모달 → 글 생성 플로우
+   - [x] 글소스 체크박스 + 글 생성 버튼
+   - [x] 작업 대기열 게시판 선택 드롭다운
+   - [x] todayhumor 수집 파이프라인 연동 (tip/good/fun)
+   - [x] article_generator.py (LLM 자동글 생성)
+   - [x] DB 마이그레이션 (presets.source_type, targets.categories, article_sources, article_queue)
+
+5. **홍보글 + 꿀팁 자동 게시 (다음 우선순위)**
    - [ ] 작업대기열 "승인 및 실행" → 실제 카페/소셜 자동 게시 연결
    - [ ] 승인 시 brand_connector_link + promo_text 조합하여 게시글 생성
    - [ ] 꿀팁(todayhumor_tips)도 게시판 자동 업로드에 활용
 
-5. **카페 자동화**
+6. **카페 자동화**
    - [ ] iwacha (29643456) 댓글 자동화 안정화
    - [ ] 출석체크 automation 연결
 
-6. **모니터링/알림**
+7. **모니터링/알림**
    - [ ] 작업 실패 시 텔레그램 알림
    - [ ] 일일 실행 리포트 자동 생성
 
@@ -1167,4 +1178,75 @@ python naver_cafe_template.py \
 2. 제휴 링크 활용 - 브랜드커넥터 링크 발급
 3. 홍보 멘트 생성 - price_summary 활용
 4. 소셜 카페 자동 홍보 - LLM 처리 없이 원본 데이터 사용
+
+---
+
+### 2026-04-21 (대시보드 전면 개편 + 글 생성 플로우)
+
+**작업 요약**
+- 대시보드 프론트엔드/백엔드 전면 개편
+- 수집 소스 탭 UI (네이버 딜 + 글소스) 추가
+- 네이버 딜 선택 → 게시판 모달 → 글 생성 플로우 구현
+- todayhumor 꿀팁/좋은글/유머글 수집 파이프라인 연동
+- LLM 자동글 생성 모듈 추가
+
+**구현 기능**
+
+1. **프리셋 관리 개편**
+   - source_type 컬럼 추가 (hotdeal, todayhumor_tip/good/fun)
+   - 활성화 토글 + 실행주기(분) 실시간 수정
+   - 중복 프리셋(ID=2) 정리
+
+2. **수집 소스 탭 UI**
+   - 탭: 네이버 딜 / 글 소스 전환
+   - 네이버 딜: 6열 테이블 (체크박스, ID, 제목, 가격, 제휴, 상태)
+   - 글소스: 카드 뷰 + 필터 (전체/꿀팁/좋은글/유머글/상품)
+   - 글소스 카드에 체크박스 추가
+
+3. **글 생성 플로우**
+   - 네이버 딜 선택 → "글 생성" 클릭 → 게시판 선택 모달 팝업
+   - 모달에 등록된 카페 타겟 목록 (이름, URL, 카테고리 뱃지)
+   - 타겟 선택 후 API 호출 → article_queue에 PENDING 등록
+   - 글소스 탭에도 동일한 플로우 적용
+
+4. **작업 대기열 개선**
+   - 각 PENDING 작업에 게시판 선택 드롭다운
+   - 프리셋명/타겟명/카테고리 뱃지 표시
+   - 타겟 미등록 시 안내 메시지
+
+5. **파이프라인 연동**
+   - `pipeline.py`에 process_todayhumor_presets() 추가
+   - 오늘의유머 꿀팁/좋은글/유머글 → article_sources 테이블 저장
+   - process_article_generation(): LLM 글 생성 트리거
+
+6. **LLM 글 생성 모듈 (`article_generator.py`)**
+   - NVIDIA API (moonshotai/kimi-k5) 기반
+   - 카테고리별 프롬프트 (product/good/fun/tip)
+   - article_queue PENDING 항목 자동 처리
+
+7. **백엔드 API 확장 (`app.py`)**
+   - `GET /api/v1/sources` — article_sources CRUD
+   - `GET/POST /api/v1/article-queue` — 글 생성 큐 관리
+   - `POST /api/v1/article-queue/generate` — 소스→큐 (deals + article_sources 양쪽 지원)
+   - `PATCH /api/v1/presets/{id}` — 프리셋 설정 수정
+
+8. **DB 마이그레이션 (`migrations/002_dashboard_improvements.py`)**
+   - presets.source_type 추가
+   - targets.categories 추가
+   - article_sources 테이블 생성
+   - article_queue 테이블 생성
+
+**수정 파일 목록**
+- `had_backend/static/index.html` — 메인 대시보드 (전면 개편)
+- `had_backend/static/shared.js` — fetchTargets, fetchSources 등 API 함수
+- `had_backend/app.py` — 백엔드 API 확장
+- `had_backend/pipeline.py` — todayhumor 수집 + article generation
+- `had_backend/article_generator.py` — LLM 글 생성 모듈 (신규)
+- `had_backend/migrations/002_dashboard_improvements.py` — DB 스키마 확장 (신규)
+
+**해결된 이슈**
+- Tailwind CDN 동적 클래스 문제 → 정적 스타일 객체 사용
+- `naver-deals-count` 요소 누락 → JS 에러로 렌더링 실패 수정
+- 네이버 딜 ID를 article_sources에서 조회하는 버그 → deals 테이블 폴백 추가
+- 글소스 0건 문제 → todayhumor 프리셋 활성화 + 파이프라인 실행으로 해결
 - 기존 `brandconnect_issue_links.py`: 미삭제 (참고용 보존)

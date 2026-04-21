@@ -71,9 +71,14 @@ window.HAD = (() => {
     });
   }
 
+  async function fetchTargets() {
+    return fetchJson('/api/v1/targets');
+  }
+
   return {
     fetchJson, fetchBrandconnectStats, applyBrandconnectStats,
     fetchSources, createSource, deleteSource,
+    fetchTargets,
     fetchArticleQueue, approveArticle, rejectArticle, generateArticle
   };
 })();

@@ -1087,7 +1087,7 @@ async def reject_article(request: Request) -> JSONResponse:
 
 
 async def generate_article(request: Request) -> JSONResponse:
-    """소스 기반 자동글 생성 요청"""
+    """소스 기반 자동글 생성 요청 (article_sources + deals 모두 지원)"""
     body = await _read_json(request)
     _require_fields(body, "target_id", "category", "source_ids")
 
@@ -1106,12 +1106,22 @@ async def generate_article(request: Request) -> JSONResponse:
         if not target:
             return _error_response("존재하지 않는 타겟입니다.", 404)
 
-        # 소스 조회
         placeholders = ",".join("?" * len(source_ids))
+
+        # 1) article_sources에서 먼저 조회
         sources = conn.execute(
             f"SELECT * FROM article_sources WHERE id IN ({placeholders})",
-            tuple(source_ids)
+            tuple(source_ids),
         ).fetchall()
+
+        is_deal_source = False
+        if not sources:
+            # 2) article_sources에 없으면 deals 테이블에서 조회
+            sources = conn.execute(
+                f"SELECT id, title, promo_text AS content_text, 'product' AS source_type FROM deals WHERE id IN ({placeholders})",
+                tuple(source_ids),
+            ).fetchall()
+            is_deal_source = True
 
         if not sources:
             return _error_response("선택된 소스가 없습니다.")
@@ -1137,12 +1147,13 @@ async def generate_article(request: Request) -> JSONResponse:
             ),
         )
 
-        # 소스 사용 횟수 증가
-        for sid in source_ids:
-            conn.execute(
-                "UPDATE article_sources SET used_count = used_count + 1 WHERE id = ?",
-                (sid,),
-            )
+        # 소스 사용 횟수 증가 (article_sources만)
+        if not is_deal_source:
+            for sid in source_ids:
+                conn.execute(
+                    "UPDATE article_sources SET used_count = used_count + 1 WHERE id = ?",
+                    (sid,),
+                )
 
         conn.commit()
 
