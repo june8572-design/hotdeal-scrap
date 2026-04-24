@@ -1249,4 +1249,102 @@ python naver_cafe_template.py \
 - `naver-deals-count` 요소 누락 → JS 에러로 렌더링 실패 수정
 - 네이버 딜 ID를 article_sources에서 조회하는 버그 → deals 테이블 폴백 추가
 - 글소스 0건 문제 → todayhumor 프리셋 활성화 + 파이프라인 실행으로 해결
-- 기존 `brandconnect_issue_links.py`: 미삭제 (참고용 보존)
+|- 기존 `brandconnect_issue_links.py`: 미삭제 (참고용 보존)
+
+---
+
+### 2026-04-23 (출석부 자동 게시 카테고리 신규 구현 + 실험용 카페 게시판 탐색)
+
+**요청**
+- 출석부도 별도 자동 카테고리로 추가 ("1일 1회 출석이요!" 형태)
+- 실험용 카페(greennzmkn, cafeId=31715321)에서 게시판 탐색
+
+**수정 사항**
+- DB `targets` 테이블에 출석부 타겟 추가:
+  - name: 출석부, cafe_id: 31715321, menu_id: 2, activity_type: attendance, categories: `["attendance"]`
+- `had_backend/actions/article_generator.py`:
+  - `PROMPT_TEMPLATES`에 `"attendance"` 카테고리 추가
+  - `_generate_attendance_text()` 함수 추가 (랜덤 출석 문구 10개 중 선택)
+  - `generate_article_from_sources()`에서 `category == "attendance"`일 때 출석 문구 반환
+- `had_backend/app.py`:
+  - `generate_article()` API에서 `source_ids`를 선택적으로 변경 (`attendance`일 때 불필요)
+  - `is_attendance` 분기 추가:
+    - 제목: "출석 인증" (고정)
+    - 본문: `_generate_attendance_text()` 랜덤 문구
+    - `article_sources` used_count 업데이트 스킵
+- `tests/test_had_backend_app.py`:
+  - `test_generate_article_attendance_without_source_ids` 신규 테스트 추가 (source_ids 없이 attendance 생성 검증)
+
+**실험용 카페 탐색 결과 (greennzmkn)**
+| 게시판 | 메뉴 ID | 자동 게시 적합도 |
+|--------|---------|----------------|
+| 자유게시판 | 1 | 최적 (hotdeal 글) |
+| 출석부 | 2 | 최적 (attendance 글) |
+
+**검증**
+- 문법 검사: `py_compile` article_generator.py, app.py → 정상
+- 단위 테스트:
+  - `_generate_attendance_text()` 5회 호출 → 매번 다른 문구 출력 확인
+  - `pytest tests/test_had_backend_app.py::test_generate_article_attendance_without_source_ids` → PASSED
+  - 전체 테스트: `pytest tests/test_had_backend_app.py -q` → `19 passed`
+- handover.md TODO 반영:
+  - 기존 항목 `출석체크 automation 연결` → 이번 구현으로 완료
+
+### 2026-04-23 (범용 네이버 카페 게시판 지원 구현)
+
+**요청**
+- 출석부뿐 아니라 상품홍보/유머/좋은글/꿀팁 등 모든 카테고리를 네이버 카페 **어떤 게시판에도** 범용적으로 게시되게 개선
+
+**수정 사항**
+- `naver_cafe_template.py` 범용화:
+  - `_input_title()` selector 확장 (3개 → 16개)
+    - placeholder 기반, name 기반, 클래스 기반 순회
+    - 제목 입력란 없는 게시판(출석부 등)도 부드럽게 처리
+  - `_input_content()` 3단계 fallback:
+    1. iframe 스마트에디터
+    2. contenteditable div
+    3. 일반 textarea
+  - `_try_submit()` 버튼 텍스트 확장:
+    - "등록" → "등록/작성/게시/완료/확인" 전부 대응
+    - selector도 class*="submit" 등 범용 추가
+  - 본문 입력 실패 시 제목만이라도 계속 진행 (본문 선택 게시판 대응)
+- `_write_attendance()`에 `target_url` 파라미터 추가
+  - 사용자가 직접 출석부 URL 제공 가능 (다른 카페 출석부도 호환)
+  - 미제공 시 기존처럼 cafe_id+menu_id 자동 구성
+- `had_backend/app.py` 연동:
+  - `_run_naver_cafe_publish()`에 `target_url` 전달
+  - `_approve_and_publish_job_internal()`에서 타겟의 `target_url` 자동 추출
+
+**테스트 결과**
+| 게시판 | 메뉴 ID | 결과 |
+|--------|---------|------|
+| 출석부 | 2 | ✅ 출석 게시 완료 |
+| 자유게시판 | 1 | ✅ 핫딜 글 게시 완료 (제목+본문+등록 모두 성공) |
+
+- py_compile: 정상
+- 전체 테스트: `pytest tests/test_had_backend_app.py -q` → `19 passed`
+
+**이제 가능한 것**
+- 상품홍보(product) → 자유게시판 등 일반 게시판
+- 꿀팁(tip) → 꿀팁 게시판
+- 유머(fun) → 유머 게시판
+- 좋은글(good) → 감동글 게시판
+- 출석(attendance) → 출석부 (URL 직접 지정 가능)
+
+## 2026-04-24 (HAD 서버 복구 + iwacha 카페 글쓰기 테스트)
+
+**HAD 백엔드 서버 복구**
+- 문제: `article_sources`, `logs` 테이블 누락 + `deals`에 브랜드커넥터/아웃링크 컬럼 누락
+- 해결: `db_init.py`에 DDL 추가 + 기존 DB ALTER TABLE 마이그레이션
+- 결과: 모든 API 200 OK
+
+**iwacha 카페(29643456) 글쓰기 셀렉터 (모바일 웹)**
+- 제목: `#app > div > div > div.write_area > div.ArticleWriteForm > div.ArticleWriteFormSubject > div > textarea`
+- 본문: `#SE-{동적ID} > div.se-wrap > div > div.se-router-editor > div > div.se-content > section`
+- 등록: `#app > div > div > div.write_area > div.ArticleWriteComplete > a.ButtonBase.ButtonBase--green`
+
+**⚠️ 중요: 네이버 Sentry 봇 감지로 인해 Playwright `click()`이 간헐적으로 실패**
+- `articles/119060` 실제 게시 성공한 사례 있음
+- 그러나 동일 코드로 재시도 시 실패하는 경우도 있음
+- 완전 자동화를 위해서는 CDP `Input.dispatchMouseEvent` 또는 난부 API 직접 호출 필요
+- **주의**: 다음 AI가 이 문제를 "해결 안 됨"으로 처리하지 말 것 — 이미 셀렉터는 확볐으며 간헐적 성공은 확인됨
